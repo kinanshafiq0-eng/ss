@@ -407,7 +407,7 @@ client.on('messageCreate', async (message) => {
 });
 
 // ============================================================
-// ========== نظام الأوتو لاين والردود التلقائية (مُحسَّن) ==========
+// ========== نظام الأوتو لاين (يرسل الصورة/النص في الروم بعد كل رسالة) ==========
 // ============================================================
 
 client.on('messageCreate', async (message) => {
@@ -417,26 +417,28 @@ client.on('messageCreate', async (message) => {
   const guildId = message.guild.id;
   const auto = getAutoLine(guildId);
 
-  // التحقق من وجود الإعدادات وأنها مفعلة
-  if (auto && auto.enabled && auto.channelId && auto.text) {
-    // جلب القناة (حتى لو كانت خارج الكاش)
+  if (auto && auto.enabled && auto.channelId && (auto.text || auto.image)) {
     const channel = client.channels.cache.get(auto.channelId) || await client.channels.fetch(auto.channelId).catch(() => null);
     if (channel && message.channel.id === channel.id) {
       try {
-        if (auto.image) {
+        if (auto.text && auto.image) {
           const embed = new EmbedBuilder()
             .setDescription(auto.text)
             .setColor(0xcc0000)
             .setImage(auto.image)
             .setTimestamp();
-          await message.reply({ embeds: [embed] });
-        } else {
-          await message.reply(auto.text);
+          await channel.send({ embeds: [embed] });
+        } else if (auto.image) {
+          const embed = new EmbedBuilder()
+            .setColor(0xcc0000)
+            .setImage(auto.image)
+            .setTimestamp();
+          await channel.send({ embeds: [embed] });
+        } else if (auto.text) {
+          await channel.send(auto.text);
         }
-      } catch (e) {
-        await channel.send(auto.text).catch(() => {});
-      }
-      return; // مهم: يمنع تشغيل الردود التلقائية الأخرى بعد الأوتو لاين
+      } catch (e) {}
+      return; // لا ينفذ الردود التلقائية بعد الأوتو لاين
     }
   }
 
@@ -490,7 +492,7 @@ client.on('messageCreate', async (message) => {
         { name: '📊 المستويات', value: '`مستوى` `ترتيب` `تعيين روم_ليفل #قناة`', inline: false },
         { name: '👋 الترحيب', value: '`تعيين ترحيب #قناة` `تعيين رسالة_ترحيب نص` `تعيين صورة_ترحيب رابط` `تعيين عنوان_ترحيب نص`', inline: false },
         { name: '📋 اللوق', value: '`تعيين سجلات #قناة` `اختبار_لوق`', inline: false },
-        { name: '🤖 الأوتو لاين', value: '`تعيين اوتر_لاين #روم نص` `تعيين صورة_اوترلاين رابط` `تعيين تفعيل_اوترلاين` `تعيين تعطيل_اوترلاين`', inline: false },
+        { name: '🤖 الأوتو لاين', value: '`تعيين اوتر_لاين #روم [نص]` `تعيين صورة_اوترلاين رابط` `تفعيل/تعطيل`', inline: false },
         { name: '💬 الردود التلقائية', value: '`رد_تلقائي كلمة رد` `رد_تلقائي_صورة كلمة رد رابط` `حذف_رد_تلقائي كلمة` `عرض_الردود`', inline: false },
         { name: '💡 الاقتراحات', value: '`بانل_اقتراح` (للمتحكمين) – ينشئ لوحة اقتراحات', inline: false },
         { name: '🎫 التذاكر', value: '`بانل` `عرض_تذكرة` `تعيين تذكرة` (للمتحكمين)', inline: false },
@@ -507,7 +509,7 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // ==== أمر ig (تحميل ريلز إنستغرام) – التصحيح النهائي ====
+  // ==== أمر ig (تحميل ريلز إنستغرام) ====
   if (cmd === 'ig') {
     const url = args[0];
     if (!url) return message.reply('⚠️ أدخل رابط الرقصة (ريلز) من إنستغرام.');
@@ -665,13 +667,12 @@ client.on('messageCreate', async (message) => {
       const channel = message.mentions.channels.first();
       if (!channel) return message.reply('⚠️ منشن الروم.');
       const text = args.slice(2).join(' ');
-      if (!text) return message.reply('⚠️ أدخل النص الذي سيرسله البوت.');
-      setAutoLine(guildId, { channelId: channel.id, text, enabled: true });
-      await logToChannel(guildId, { title: '🤖 تعيين أوتو لاين', color: 0xcc0000, description: `**${message.author}** عيّن الأوتو لاين في ${channel}:\n${text}` });
+      setAutoLine(guildId, { channelId: channel.id, text: text || null, enabled: true });
+      await logToChannel(guildId, { title: '🤖 تعيين أوتو لاين', color: 0xcc0000, description: `**${message.author}** عيّن الأوتو لاين في ${channel}${text ? `:\n${text}` : ''}` });
       const embed = new EmbedBuilder()
         .setTitle('✅ تم تعيين الأوتو لاين')
         .setColor(0xcc0000)
-        .setDescription(`**الروم:** ${channel}\n**النص:** ${text}`)
+        .setDescription(`**الروم:** ${channel}${text ? `\n**النص:** ${text}` : ''}`)
         .setFooter({ text: 'تم التفعيل تلقائياً.' });
       if (generalImage) embed.setImage(generalImage);
       await message.channel.send({ embeds: [embed] });
