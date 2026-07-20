@@ -67,7 +67,7 @@ function getGuildConfig(guildId) {
       logChannel: null,
       welcomeChannel: null,
       welcomeMessage: 'أهلاً بك في السيرفر! 🎉',
-      welcomeTitle: '🔥 Welcome To TEAM WOLF Community',
+      welcomeTitle: '🔥 مرحباً بك في المجتمع',
       welcomeImage: null,
       muteRole: null,
       joinRole: null,
@@ -187,7 +187,7 @@ const client = new Client({
 client.once('ready', () => {
   console.log(`✅ البوت جاهز باسم ${client.user.tag}`);
   if (OWNER_ID) console.log(`👑 صاحب البوت: ${OWNER_ID}`);
-  client.user.setActivity('🔥 !مساعدة | TEAM WOLF', { type: ActivityType.Watching });
+  client.user.setActivity('🔥 !مساعدة | البوت', { type: ActivityType.Watching });
 });
 
 // ============================================================
@@ -288,7 +288,7 @@ async function generateWelcomeImage(member, memberCount) {
   ctx.font = '22px Arial';
   ctx.fillStyle = '#ff0000';
   ctx.shadowBlur = 0;
-  ctx.fillText('TEAM WOLF', canvas.width - 50, canvas.height - 40);
+  ctx.fillText('مرحباً بك', canvas.width - 50, canvas.height - 40);
   ctx.shadowBlur = 0;
   return canvas.toBuffer('image/png');
 }
@@ -303,7 +303,7 @@ client.on('guildMemberAdd', async (member) => {
   const imageBuffer = await generateWelcomeImage(member, memberCount);
   const generalImage = getGeneralImage(member.guild, config);
   const embed = new EmbedBuilder()
-    .setTitle(config.welcomeTitle || '🔥 Welcome To TEAM WOLF Community')
+    .setTitle(config.welcomeTitle || '🔥 مرحباً بك في المجتمع')
     .setDescription(config.welcomeMessage || `أهلاً ${member} في السيرفر!`)
     .setColor(0xcc0000)
     .setImage('attachment://welcome.png')
@@ -510,7 +510,7 @@ client.on('messageCreate', async (message) => {
         { name: 'ℹ️ معلومات', value: '`معلومات` `سيرفر` `بينق`', inline: false },
         { name: '⚙️ إعدادات', value: '`تعيين` (للمتحكمين)', inline: false }
       )
-      .setFooter({ text: `🔥 TEAM WOLF | البادئة: !` });
+      .setFooter({ text: `🔥 البادئة: !` });
     if (generalImage) embed.setImage(generalImage);
     const msg = await message.channel.send({ embeds: [embed] });
     autoDelete(msg, 30000);
@@ -646,7 +646,6 @@ client.on('messageCreate', async (message) => {
         .setTimestamp();
       if (generalImage) embed.setImage(generalImage);
       await message.channel.send({ embeds: [embed] });
-      // إرسال ملف الصوت الفعلي
       const stream = ytdl(url, { filter: 'audioonly', quality: 'highestaudio' });
       const fileName = `${info.videoDetails.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`;
       const filePath = `./temp/${fileName}`;
