@@ -364,7 +364,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 });
 
 // ============================================================
-// ========== نظام المستويات ==========
+// ========== نظام المستويات (معدل: يُرسل إلى القناة فقط) ==========
 // ============================================================
 
 client.on('messageCreate', async (message) => {
@@ -383,30 +383,20 @@ client.on('messageCreate', async (message) => {
   if (userData.xp >= requiredXP) {
     userData.level += 1;
     userData.xp = 0;
-    try {
-      const dmEmbed = new EmbedBuilder()
+
+    const levelChannelId = config.levelChannelId || message.channel.id;
+    const levelChannel = message.guild.channels.cache.get(levelChannelId);
+    if (levelChannel) {
+      const embed = new EmbedBuilder()
         .setTitle('🎉 مستوى جديد!')
-        .setDescription(`مبروك! وصلت إلى المستوى **${userData.level}** في سيرفر **${message.guild.name}**!`)
+        .setDescription(`${message.author} وصل إلى المستوى **${userData.level}**!`)
         .setColor(0xcc0000)
-        .setTimestamp()
-        .setFooter({ text: 'استمر في التفاعل لترفع مستواك!' });
+        .setTimestamp();
       const generalImage = getGeneralImage(message.guild, config);
-      if (generalImage) dmEmbed.setThumbnail(generalImage);
-      await message.author.send({ embeds: [dmEmbed] });
-    } catch (error) {
-      const levelChannelId = config.levelChannelId || message.channel.id;
-      const levelChannel = message.guild.channels.cache.get(levelChannelId);
-      if (levelChannel) {
-        const embed = new EmbedBuilder()
-          .setTitle('🎉 مستوى جديد!')
-          .setDescription(`${message.author} وصل إلى المستوى **${userData.level}**!`)
-          .setColor(0xcc0000)
-          .setTimestamp();
-        const generalImage = getGeneralImage(message.guild, config);
-        if (generalImage) embed.setThumbnail(generalImage);
-        await levelChannel.send({ embeds: [embed] });
-      }
+      if (generalImage) embed.setThumbnail(generalImage);
+      await levelChannel.send({ embeds: [embed] });
     }
+
     const levelRole = db.levelRoles?.[guildId]?.[userData.level];
     if (levelRole) {
       const role = message.guild.roles.cache.get(levelRole);
@@ -476,7 +466,7 @@ client.on('messageCreate', async (message) => {
 
   autoDelete(message, 20000);
 
-  // ========== المساعدة (محدثة) ==========
+  // ========== المساعدة ==========
   if (cmd === 'مساعدة') {
     const embed = new EmbedBuilder()
       .setTitle('📖 قائمة الأوامر')
@@ -546,133 +536,167 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // ========== الأوتو لاين ==========
-  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'اوتر_لاين') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const channel = message.mentions.channels.first();
-    if (!channel) return message.reply('⚠️ منشن الروم.');
-    const text = args.slice(2).join(' ');
-    if (!text) return message.reply('⚠️ أدخل النص الذي سيرسله البوت.');
-    setAutoLine(guildId, { channelId: channel.id, text, enabled: true });
-    await logToChannel(guildId, { title: '🤖 تعيين أوتو لاين', color: 0xcc0000, description: `**${message.author}** عيّن الأوتو لاين في ${channel}:\n${text}` });
-    const embed = new EmbedBuilder()
-      .setTitle('✅ تم تعيين الأوتو لاين')
-      .setColor(0xcc0000)
-      .setDescription(`**الروم:** ${channel}\n**النص:** ${text}`)
-      .setFooter({ text: 'تم التفعيل تلقائياً.' });
-    if (generalImage) embed.setImage(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
+  // ========== أوامر "تعيين" ==========
+  if (cmd === 'تعيين') {
+    if (!hasPermission(message.member, guildId)) {
+      return message.reply('❌ تحتاج صلاحية متحكم.');
+    }
 
-  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'صورة_اوترلاين') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const url = args.slice(1).join(' ');
-    if (!url) return message.reply('⚠️ أدخل رابط الصورة.');
-    setAutoLine(guildId, { image: url });
-    await logToChannel(guildId, { title: '🖼️ تعيين صورة أوتو لاين', color: 0xcc0000, description: `**${message.author}** عيّن صورة الأوتو لاين: ${url}` });
-    const embed = new EmbedBuilder()
-      .setTitle('✅ تم تعيين صورة الأوتو لاين')
-      .setColor(0xcc0000)
-      .setDescription(`[رابط الصورة](${url})`)
-      .setImage(url);
-    if (generalImage) embed.setThumbnail(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
+    const sub = args[0]?.toLowerCase();
+    const value = args.slice(1).join(' ');
 
-  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'تفعيل_اوترلاين') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    setAutoLine(guildId, { enabled: true });
-    await logToChannel(guildId, { title: '✅ تفعيل أوتو لاين', color: 0xcc0000, description: `**${message.author}** فعّل الأوتو لاين.` });
-    const embed = new EmbedBuilder()
-      .setTitle('✅ تم تفعيل الأوتو لاين')
-      .setColor(0xcc0000)
-      .setDescription('تم تشغيل النظام. سيرد البوت تلقائياً في الروم المحدد.');
-    if (generalImage) embed.setImage(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
+    if (sub === 'ترحيب') {
+      const channel = message.mentions.channels.first();
+      if (!channel) {
+        updateGuildConfig(guildId, { welcomeChannel: null });
+        await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** ألغى قناة الترحيب.`, footer: 'الإعدادات' });
+        return message.reply('✅ تم إلغاء تحديد قناة الترحيب.');
+      }
+      updateGuildConfig(guildId, { welcomeChannel: channel.id });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن قناة الترحيب إلى ${channel}.`, footer: 'الإعدادات' });
+      return message.reply(`✅ تم تعيين قناة الترحيب إلى ${channel}`);
+    }
 
-  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'تعطيل_اوترلاين') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    setAutoLine(guildId, { enabled: false });
-    await logToChannel(guildId, { title: '⏹️ تعطيل أوتو لاين', color: 0xcc0000, description: `**${message.author}** عطّل الأوتو لاين.` });
-    const embed = new EmbedBuilder()
-      .setTitle('⏹️ تم تعطيل الأوتو لاين')
-      .setColor(0xcc0000)
-      .setDescription('تم إيقاف النظام. لن يرد البوت تلقائياً حتى يتم تفعيله مرة أخرى.');
-    if (generalImage) embed.setImage(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
+    if (sub === 'رسالة_ترحيب') {
+      if (!value) return message.reply('⚠️ أدخل نص الترحيب الجديد.');
+      updateGuildConfig(guildId, { welcomeMessage: value });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** غيّر نص الترحيب إلى:\n${value}`, footer: 'الإعدادات' });
+      return message.reply(`✅ تم تعيين نص الترحيب:\n${value}`);
+    }
 
-  // ========== الردود التلقائية ==========
-  if (cmd === 'رد_تلقائي') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const keyword = args[0];
-    const reply = args.slice(1).join(' ');
-    if (!keyword || !reply) return message.reply('⚠️ الصيغة: `!رد_تلقائي [الكلمة] [الرد]`');
-    const added = addAutoReply(guildId, keyword, reply);
-    await logToChannel(guildId, { title: '💬 إضافة رد تلقائي', color: 0xcc0000, description: `**${message.author}** أضاف رداً تلقائياً:\n**${keyword}** → ${reply}` });
-    const embed = new EmbedBuilder()
-      .setTitle(added ? '✅ تم إضافة رد تلقائي' : '🔄 تم تحديث رد تلقائي')
-      .setColor(0xcc0000)
-      .setDescription(`**الكلمة:** ${keyword}\n**الرد:** ${reply}`)
-      .setFooter({ text: 'سيرد البوت تلقائياً عند كتابة هذه الكلمة.' });
-    if (generalImage) embed.setImage(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
+    if (sub === 'صورة_ترحيب') {
+      if (!value) {
+        updateGuildConfig(guildId, { welcomeImage: null });
+        await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** ألغى صورة الترحيب.`, footer: 'الإعدادات' });
+        return message.reply('✅ تم إلغاء صورة الترحيب.');
+      }
+      updateGuildConfig(guildId, { welcomeImage: value });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة الترحيب: ${value}`, footer: 'الإعدادات' });
+      return message.reply(`✅ تم تعيين صورة الترحيب: ${value}`);
+    }
 
-  if (cmd === 'رد_تلقائي_صورة') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const keyword = args[0];
-    const image = args[args.length - 1];
-    const reply = args.slice(1, -1).join(' ');
-    if (!keyword || !reply || !image) return message.reply('⚠️ الصيغة: `!رد_تلقائي_صورة [الكلمة] [الرد] [رابط_الصورة]`');
-    if (!image.match(/^https?:\/\/.+/)) return message.reply('⚠️ الرابط غير صالح.');
-    const added = addAutoReply(guildId, keyword, reply, image);
-    await logToChannel(guildId, { title: '💬 إضافة رد تلقائي مع صورة', color: 0xcc0000, description: `**${message.author}** أضاف رداً تلقائياً مع صورة:\n**${keyword}** → ${reply}` });
-    const embed = new EmbedBuilder()
-      .setTitle(added ? '✅ تم إضافة رد تلقائي مع صورة' : '🔄 تم تحديث رد تلقائي مع صورة')
-      .setColor(0xcc0000)
-      .setDescription(`**الكلمة:** ${keyword}\n**الرد:** ${reply}`)
-      .setImage(image)
-      .setFooter({ text: 'سيرد البوت مع الصورة تلقائياً.' });
-    if (generalImage) embed.setThumbnail(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
+    if (sub === 'عنوان_ترحيب') {
+      if (!value) return message.reply('⚠️ أدخل العنوان الجديد.');
+      updateGuildConfig(guildId, { welcomeTitle: value });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** غيّر عنوان الترحيب إلى: "${value}"`, footer: 'الإعدادات' });
+      return message.reply(`✅ تم تعيين عنوان الترحيب: "${value}"`);
+    }
 
-  if (cmd === 'حذف_رد_تلقائي') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const keyword = args.join(' ');
-    if (!keyword) return message.reply('⚠️ اكتب الكلمة المفتاحية التي تريد حذفها.');
-    const removed = removeAutoReply(guildId, keyword);
-    if (!removed) return message.reply(`⚠️ لا يوجد رد تلقائي للكلمة "${keyword}".`);
-    await logToChannel(guildId, { title: '🗑️ حذف رد تلقائي', color: 0xcc0000, description: `**${message.author}** حذف الرد التلقائي للكلمة **${keyword}**` });
-    const embed = new EmbedBuilder()
-      .setTitle('🗑️ تم حذف الرد التلقائي')
-      .setColor(0xcc0000)
-      .setDescription(`تم حذف الرد التلقائي للكلمة: **${keyword}**`);
-    if (generalImage) embed.setImage(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
+    if (sub === 'سجلات') {
+      const channel = message.mentions.channels.first();
+      if (!channel) {
+        updateGuildConfig(guildId, { logChannel: null });
+        return message.reply('✅ تم إلغاء تعيين قناة اللوق.');
+      }
+      updateGuildConfig(guildId, { logChannel: channel.id });
+      await logToChannel(guildId, { title: '📋 تم تعيين قناة اللوق', color: 0xcc0000, description: `**${message.author}** عيّن قناة اللوق إلى ${channel}`, footer: 'الإعدادات' });
+      return message.reply(`✅ تم تعيين قناة اللوق إلى ${channel}`);
+    }
 
-  if (cmd === 'عرض_الردود') {
-    const replies = getAutoReplies(guildId);
-    if (!replies.length) return message.reply('📭 لا توجد ردود تلقائية في هذا السيرفر.');
-    const list = replies.map((r, i) => `${i+1}. **${r.keyword}** → ${r.reply}${r.image ? ' (🖼️)' : ''}`).join('\n');
-    const embed = new EmbedBuilder()
-      .setTitle('💬 قائمة الردود التلقائية')
-      .setColor(0xcc0000)
-      .setDescription(list)
-      .setFooter({ text: `عدد الردود: ${replies.length}` });
-    if (generalImage) embed.setImage(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
+    if (sub === 'روم_ليفل') {
+      const channel = message.mentions.channels.first();
+      if (!channel) {
+        updateGuildConfig(guildId, { levelChannelId: null });
+        await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** ألغى قناة الليفل.`, footer: 'الإعدادات' });
+        return message.reply('✅ تم إلغاء تحديد قناة الليفل.');
+      }
+      updateGuildConfig(guildId, { levelChannelId: channel.id });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن قناة الليفل إلى ${channel}.`, footer: 'الإعدادات' });
+      return message.reply(`✅ تم تعيين قناة الليفل إلى ${channel}`);
+    }
+
+    if (sub === 'اوتر_لاين') {
+      const channel = message.mentions.channels.first();
+      if (!channel) return message.reply('⚠️ منشن الروم.');
+      const text = args.slice(2).join(' ');
+      if (!text) return message.reply('⚠️ أدخل النص الذي سيرسله البوت.');
+      setAutoLine(guildId, { channelId: channel.id, text, enabled: true });
+      await logToChannel(guildId, { title: '🤖 تعيين أوتو لاين', color: 0xcc0000, description: `**${message.author}** عيّن الأوتو لاين في ${channel}:\n${text}` });
+      const embed = new EmbedBuilder()
+        .setTitle('✅ تم تعيين الأوتو لاين')
+        .setColor(0xcc0000)
+        .setDescription(`**الروم:** ${channel}\n**النص:** ${text}`)
+        .setFooter({ text: 'تم التفعيل تلقائياً.' });
+      if (generalImage) embed.setImage(generalImage);
+      await message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    if (sub === 'صورة_اوترلاين') {
+      if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
+      setAutoLine(guildId, { image: value });
+      await logToChannel(guildId, { title: '🖼️ تعيين صورة أوتو لاين', color: 0xcc0000, description: `**${message.author}** عيّن صورة الأوتو لاين: ${value}` });
+      const embed = new EmbedBuilder()
+        .setTitle('✅ تم تعيين صورة الأوتو لاين')
+        .setColor(0xcc0000)
+        .setDescription(`[رابط الصورة](${value})`)
+        .setImage(value);
+      if (generalImage) embed.setThumbnail(generalImage);
+      await message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    if (sub === 'تفعيل_اوترلاين') {
+      setAutoLine(guildId, { enabled: true });
+      await logToChannel(guildId, { title: '✅ تفعيل أوتو لاين', color: 0xcc0000, description: `**${message.author}** فعّل الأوتو لاين.` });
+      const embed = new EmbedBuilder()
+        .setTitle('✅ تم تفعيل الأوتو لاين')
+        .setColor(0xcc0000)
+        .setDescription('تم تشغيل النظام. سيرد البوت تلقائياً في الروم المحدد.');
+      if (generalImage) embed.setImage(generalImage);
+      await message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    if (sub === 'تعطيل_اوترلاين') {
+      setAutoLine(guildId, { enabled: false });
+      await logToChannel(guildId, { title: '⏹️ تعطيل أوتو لاين', color: 0xcc0000, description: `**${message.author}** عطّل الأوتو لاين.` });
+      const embed = new EmbedBuilder()
+        .setTitle('⏹️ تم تعطيل الأوتو لاين')
+        .setColor(0xcc0000)
+        .setDescription('تم إيقاف النظام. لن يرد البوت تلقائياً حتى يتم تفعيله مرة أخرى.');
+      if (generalImage) embed.setImage(generalImage);
+      await message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    if (sub === 'دور_دخول') {
+      const role = message.mentions.roles.first();
+      if (!role) return message.reply('⚠️ منشن الدور.');
+      updateGuildConfig(guildId, { joinRole: role.id });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن دور الدخول إلى ${role.name}.`, footer: 'الإعدادات' });
+      return message.reply(`✅ تم تعيين دور الدخول إلى ${role}`);
+    }
+
+    if (sub === 'صورة_بانل') {
+      if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
+      updateGuildConfig(guildId, { ticketPanelImage: value });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة البانل: ${value}`, footer: 'الإعدادات' });
+      return message.reply(`✅ تم تعيين صورة البانل: ${value}`);
+    }
+
+    if (sub === 'صورة_رتب') {
+      if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
+      updateGuildConfig(guildId, { rolesImage: value });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة رتب الإشعارات: ${value}`, footer: 'الإعدادات' });
+      return message.reply(`✅ تم تعيين صورة رتب الإشعارات: ${value}`);
+    }
+
+    if (sub === 'صورة_بنر') {
+      if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
+      updateGuildConfig(guildId, { bannerImage: value });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة البنر: ${value}`, footer: 'الإعدادات' });
+      return message.reply(`✅ تم تعيين صورة البنر: ${value}`);
+    }
+
+    if (sub === 'صورة_عامة') {
+      if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
+      updateGuildConfig(guildId, { generalImage: value });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن الصورة العامة: ${value}`, footer: 'الإعدادات' });
+      return message.reply(`✅ تم تعيين الصورة العامة: ${value}`);
+    }
+
+    return message.reply('⚠️ خيار غير معروف. استخدم `!تعيين` لعرض القائمة.');
   }
 
   // ========== اختبار اللوق ==========
@@ -686,86 +710,7 @@ client.on('messageCreate', async (message) => {
       description: `✅ اللوق يعمل بنجاح!\n**المنفذ:** ${message.author}`,
       footer: 'رسالة اختبار',
     });
-    await message.reply('✅ تم إرسال رسالة اختبار إلى قناة اللوق.');
-    return;
-  }
-
-  // ========== أوامر الترحيب ==========
-  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'ترحيب') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const channel = message.mentions.channels.first();
-    if (!channel) {
-      updateGuildConfig(guildId, { welcomeChannel: null });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** ألغى قناة الترحيب.`, footer: 'الإعدادات' });
-      return message.reply('✅ تم إلغاء تحديد قناة الترحيب.');
-    }
-    updateGuildConfig(guildId, { welcomeChannel: channel.id });
-    await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن قناة الترحيب إلى ${channel}.`, footer: 'الإعدادات' });
-    await message.reply(`✅ تم تعيين قناة الترحيب إلى ${channel}`);
-    return;
-  }
-
-  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'رسالة_ترحيب') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const text = args.slice(1).join(' ');
-    if (!text) return message.reply('⚠️ أدخل نص الترحيب الجديد.');
-    updateGuildConfig(guildId, { welcomeMessage: text });
-    await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** غيّر نص الترحيب إلى:\n${text}`, footer: 'الإعدادات' });
-    await message.reply(`✅ تم تعيين نص الترحيب:\n${text}`);
-    return;
-  }
-
-  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'صورة_ترحيب') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const url = args.slice(1).join(' ');
-    if (!url) {
-      updateGuildConfig(guildId, { welcomeImage: null });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** ألغى صورة الترحيب.`, footer: 'الإعدادات' });
-      return message.reply('✅ تم إلغاء صورة الترحيب.');
-    }
-    updateGuildConfig(guildId, { welcomeImage: url });
-    await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة الترحيب: ${url}`, footer: 'الإعدادات' });
-    await message.reply(`✅ تم تعيين صورة الترحيب: ${url}`);
-    return;
-  }
-
-  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'عنوان_ترحيب') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const text = args.slice(1).join(' ');
-    if (!text) return message.reply('⚠️ أدخل العنوان الجديد.');
-    updateGuildConfig(guildId, { welcomeTitle: text });
-    await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** غيّر عنوان الترحيب إلى: "${text}"`, footer: 'الإعدادات' });
-    await message.reply(`✅ تم تعيين عنوان الترحيب: "${text}"`);
-    return;
-  }
-
-  // ========== تعيين قناة اللوق ==========
-  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'سجلات') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const channel = message.mentions.channels.first();
-    if (!channel) {
-      updateGuildConfig(guildId, { logChannel: null });
-      return message.reply('✅ تم إلغاء تعيين قناة اللوق.');
-    }
-    updateGuildConfig(guildId, { logChannel: channel.id });
-    await logToChannel(guildId, { title: '📋 تم تعيين قناة اللوق', color: 0xcc0000, description: `**${message.author}** عيّن قناة اللوق إلى ${channel}`, footer: 'الإعدادات' });
-    await message.reply(`✅ تم تعيين قناة اللوق إلى ${channel}`);
-    return;
-  }
-
-  // ========== روم الليفل ==========
-  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'روم_ليفل') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const channel = message.mentions.channels.first();
-    if (!channel) {
-      updateGuildConfig(guildId, { levelChannelId: null });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** ألغى قناة الليفل.`, footer: 'الإعدادات' });
-      return message.reply('✅ تم إلغاء تحديد قناة الليفل.');
-    }
-    updateGuildConfig(guildId, { levelChannelId: channel.id });
-    await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن قناة الليفل إلى ${channel}.`, footer: 'الإعدادات' });
-    await message.reply(`✅ تم تعيين قناة الليفل إلى ${channel}`);
-    return;
+    return message.reply('✅ تم إرسال رسالة اختبار إلى قناة اللوق.');
   }
 
   // ========== مستوى ==========
@@ -1216,8 +1161,7 @@ client.on('messageCreate', async (message) => {
       settings.sections.push({ name: sectionName, roleId, emoji });
       saveTicketSettings(guildId, settings);
       await logToChannel(guildId, { title: '🎫 إضافة قسم تذكرة', color: 0xcc0000, description: `**${message.author}** أضاف قسم **${sectionName}** مع دور <@&${roleId}> وإيموجي ${emoji}` });
-      await message.reply(`✅ تم إضافة قسم **${sectionName}** مع دور <@&${roleId}> وإيموجي ${emoji}.`);
-      return;
+      return message.reply(`✅ تم إضافة قسم **${sectionName}** مع دور <@&${roleId}> وإيموجي ${emoji}.`);
     }
     if (sub === 'تعيين_ايموجي') {
       const parts = value.match(/^(.+?)\s+(\S+)$/);
@@ -1229,8 +1173,7 @@ client.on('messageCreate', async (message) => {
       section.emoji = emoji;
       saveTicketSettings(guildId, settings);
       await logToChannel(guildId, { title: '🎨 تعيين إيموجي قسم', color: 0xcc0000, description: `**${message.author}** عيّن الإيموجي ${emoji} لقسم **${sectionName}**` });
-      await message.reply(`✅ تم تعيين الإيموجي ${emoji} لقسم **${sectionName}**.`);
-      return;
+      return message.reply(`✅ تم تعيين الإيموجي ${emoji} لقسم **${sectionName}**.`);
     }
     if (sub === 'حذف') {
       const sectionName = value.trim();
@@ -1239,27 +1182,23 @@ client.on('messageCreate', async (message) => {
       settings.sections.splice(index, 1);
       saveTicketSettings(guildId, settings);
       await logToChannel(guildId, { title: '🗑️ حذف قسم تذكرة', color: 0xcc0000, description: `**${message.author}** حذف قسم **${sectionName}**` });
-      await message.reply(`✅ تم حذف قسم **${sectionName}**.`);
-      return;
+      return message.reply(`✅ تم حذف قسم **${sectionName}**.`);
     }
     if (sub === 'نص') {
       if (!value) return message.reply('⚠️ أدخل النص الجديد.');
       settings.text = value;
       saveTicketSettings(guildId, settings);
       await logToChannel(guildId, { title: '📝 تغيير نص التذاكر', color: 0xcc0000, description: `**${message.author}** غيّر نص التذاكر إلى:\n${value}` });
-      await message.reply(`✅ تم تغيير نص التذاكر:\n${value}`);
-      return;
+      return message.reply(`✅ تم تغيير نص التذاكر:\n${value}`);
     }
     if (sub === 'صورة') {
       if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
       settings.image = value;
       saveTicketSettings(guildId, settings);
       await logToChannel(guildId, { title: '🖼️ تغيير صورة التذاكر', color: 0xcc0000, description: `**${message.author}** غيّر صورة التذاكر إلى: ${value}` });
-      await message.reply(`✅ تم تغيير صورة التذاكر: ${value}`);
-      return;
+      return message.reply(`✅ تم تغيير صورة التذاكر: ${value}`);
     }
-    await message.reply('⚠️ أمر غير معروف. استخدم `!تعيين تذكرة` لعرض التعليمات.');
-    return;
+    return message.reply('⚠️ أمر غير معروف. استخدم `!تعيين تذكرة` لعرض التعليمات.');
   }
 
   if (cmd === 'بانل') {
@@ -1273,8 +1212,7 @@ client.on('messageCreate', async (message) => {
     const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId('ticket_menu').setPlaceholder('📌 اختر القسم...').addOptions(options));
     await message.channel.send({ embeds: [embed], components: [row] });
     await logToChannel(guildId, { title: '🎫 إنشاء لوحة تذاكر', color: 0xcc0000, description: `**${message.author}** أنشأ لوحة تذاكر.` });
-    await message.reply('✅ تم إنشاء لوحة التذاكر.');
-    return;
+    return message.reply('✅ تم إنشاء لوحة التذاكر.');
   }
 
   // ========== رتب الإشعارات ==========
@@ -1291,8 +1229,7 @@ client.on('messageCreate', async (message) => {
     );
     await message.channel.send({ embeds: [embed], components: [row] });
     await logToChannel(guildId, { title: '🔔 إنشاء لوحة رتب الإشعارات', color: 0xcc0000, description: `**${message.author}** أنشأ لوحة رتب الإشعارات.` });
-    await message.reply('✅ تم إنشاء لوحة الرتب.');
-    return;
+    return message.reply('✅ تم إنشاء لوحة الرتب.');
   }
 
   // ========== تغيير الاسم ==========
@@ -1307,6 +1244,74 @@ client.on('messageCreate', async (message) => {
     if (generalImage) embed.setImage(generalImage);
     const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('open_name_modal').setLabel('✏️ تغيير الاسم').setStyle(ButtonStyle.Secondary));
     await message.channel.send({ embeds: [embed], components: [row] });
+    return;
+  }
+
+  // ========== أوامر الردود التلقائية ==========
+  if (cmd === 'رد_تلقائي') {
+    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
+    const keyword = args[0];
+    const reply = args.slice(1).join(' ');
+    if (!keyword || !reply) return message.reply('⚠️ الصيغة: `!رد_تلقائي [الكلمة] [الرد]`');
+    const added = addAutoReply(guildId, keyword, reply);
+    await logToChannel(guildId, { title: '💬 إضافة رد تلقائي', color: 0xcc0000, description: `**${message.author}** أضاف رداً تلقائياً:\n**${keyword}** → ${reply}` });
+    const embed = new EmbedBuilder()
+      .setTitle(added ? '✅ تم إضافة رد تلقائي' : '🔄 تم تحديث رد تلقائي')
+      .setColor(0xcc0000)
+      .setDescription(`**الكلمة:** ${keyword}\n**الرد:** ${reply}`)
+      .setFooter({ text: 'سيرد البوت تلقائياً عند كتابة هذه الكلمة.' });
+    if (generalImage) embed.setImage(generalImage);
+    await message.channel.send({ embeds: [embed] });
+    return;
+  }
+
+  if (cmd === 'رد_تلقائي_صورة') {
+    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
+    const keyword = args[0];
+    const image = args[args.length - 1];
+    const reply = args.slice(1, -1).join(' ');
+    if (!keyword || !reply || !image) return message.reply('⚠️ الصيغة: `!رد_تلقائي_صورة [الكلمة] [الرد] [رابط_الصورة]`');
+    if (!image.match(/^https?:\/\/.+/)) return message.reply('⚠️ الرابط غير صالح.');
+    const added = addAutoReply(guildId, keyword, reply, image);
+    await logToChannel(guildId, { title: '💬 إضافة رد تلقائي مع صورة', color: 0xcc0000, description: `**${message.author}** أضاف رداً تلقائياً مع صورة:\n**${keyword}** → ${reply}` });
+    const embed = new EmbedBuilder()
+      .setTitle(added ? '✅ تم إضافة رد تلقائي مع صورة' : '🔄 تم تحديث رد تلقائي مع صورة')
+      .setColor(0xcc0000)
+      .setDescription(`**الكلمة:** ${keyword}\n**الرد:** ${reply}`)
+      .setImage(image)
+      .setFooter({ text: 'سيرد البوت مع الصورة تلقائياً.' });
+    if (generalImage) embed.setThumbnail(generalImage);
+    await message.channel.send({ embeds: [embed] });
+    return;
+  }
+
+  if (cmd === 'حذف_رد_تلقائي') {
+    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
+    const keyword = args.join(' ');
+    if (!keyword) return message.reply('⚠️ اكتب الكلمة المفتاحية التي تريد حذفها.');
+    const removed = removeAutoReply(guildId, keyword);
+    if (!removed) return message.reply(`⚠️ لا يوجد رد تلقائي للكلمة "${keyword}".`);
+    await logToChannel(guildId, { title: '🗑️ حذف رد تلقائي', color: 0xcc0000, description: `**${message.author}** حذف الرد التلقائي للكلمة **${keyword}**` });
+    const embed = new EmbedBuilder()
+      .setTitle('🗑️ تم حذف الرد التلقائي')
+      .setColor(0xcc0000)
+      .setDescription(`تم حذف الرد التلقائي للكلمة: **${keyword}**`);
+    if (generalImage) embed.setImage(generalImage);
+    await message.channel.send({ embeds: [embed] });
+    return;
+  }
+
+  if (cmd === 'عرض_الردود') {
+    const replies = getAutoReplies(guildId);
+    if (!replies.length) return message.reply('📭 لا توجد ردود تلقائية في هذا السيرفر.');
+    const list = replies.map((r, i) => `${i+1}. **${r.keyword}** → ${r.reply}${r.image ? ' (🖼️)' : ''}`).join('\n');
+    const embed = new EmbedBuilder()
+      .setTitle('💬 قائمة الردود التلقائية')
+      .setColor(0xcc0000)
+      .setDescription(list)
+      .setFooter({ text: `عدد الردود: ${replies.length}` });
+    if (generalImage) embed.setImage(generalImage);
+    await message.channel.send({ embeds: [embed] });
     return;
   }
 
