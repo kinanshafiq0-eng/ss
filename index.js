@@ -1,9 +1,21 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionsBitField, ChannelType, ModalBuilder, TextInputBuilder, TextInputStyle, ActivityType } = require('discord.js');
+const {
+  Client,
+  GatewayIntentBits,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  StringSelectMenuBuilder,
+  PermissionsBitField,
+  ChannelType,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  ActivityType,
+} = require('discord.js');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const express = require('express');
 const fs = require('fs');
-const play = require('play-dl');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -62,7 +74,6 @@ function getGuildConfig(guildId) {
       bannerImage: null,
       generalImage: null,
       levelChannelId: null,
-      autoDeleteChannel: null,
     };
   }
   return db.config[guildId];
@@ -109,7 +120,9 @@ function clearWarns(userId, guildId) {
 
 // ========== دوال الأوتو لاين ==========
 function getAutoLine(guildId) {
-  if (!db.autoLine[guildId]) db.autoLine[guildId] = { channelId: null, text: null, image: null, enabled: false };
+  if (!db.autoLine[guildId]) {
+    db.autoLine[guildId] = { channelId: null, text: null, image: null, enabled: false };
+  }
   return db.autoLine[guildId];
 }
 function setAutoLine(guildId, data) {
@@ -413,58 +426,40 @@ client.on('messageCreate', async (message) => {
 client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild) return;
   if (message.content.startsWith('!')) return;
+
   const guildId = message.guild.id;
+
+  // ========== الأوتو لاين ==========
   const auto = getAutoLine(guildId);
   if (auto.enabled && auto.channelId && auto.text && message.channel.id === auto.channelId) {
     if (auto.image) {
-      const embed = new EmbedBuilder().setDescription(auto.text).setColor(0xcc0000).setImage(auto.image).setTimestamp();
+      const embed = new EmbedBuilder()
+        .setDescription(auto.text)
+        .setColor(0xcc0000)
+        .setImage(auto.image)
+        .setTimestamp();
       await message.reply({ embeds: [embed] }).catch(() => {});
     } else {
       await message.reply(auto.text).catch(() => {});
     }
     return;
   }
+
+  // ========== الردود التلقائية ==========
   const autoReply = findAutoReply(guildId, message.content);
   if (autoReply) {
     if (autoReply.image) {
-      const embed = new EmbedBuilder().setDescription(autoReply.reply).setColor(0xcc0000).setImage(autoReply.image).setTimestamp();
+      const embed = new EmbedBuilder()
+        .setDescription(autoReply.reply)
+        .setColor(0xcc0000)
+        .setImage(autoReply.image)
+        .setTimestamp();
       await message.reply({ embeds: [embed] }).catch(() => {});
     } else {
       await message.reply(autoReply.reply).catch(() => {});
     }
   }
 });
-
-// ============================================================
-// ========== نظام بوت الأغاني (باستخدام play-dl) ==========
-// ============================================================
-
-const queue = new Map();
-
-async function playSong(guildId, song) {
-  const serverQueue = queue.get(guildId);
-  if (!song) {
-    if (serverQueue && serverQueue.connection) serverQueue.connection.destroy();
-    queue.delete(guildId);
-    return;
-  }
-  try {
-    const stream = await play.stream(song.url, { quality: 2 });
-    const resource = createAudioResource(stream.stream, { inputType: stream.type });
-    const player = createAudioPlayer();
-    serverQueue.connection.subscribe(player);
-    player.play(resource);
-    player.on(AudioPlayerStatus.Idle, () => {
-      serverQueue.songs.shift();
-      playSong(guildId, serverQueue.songs[0]);
-    });
-    await serverQueue.textChannel.send(`🎵 الآن يتم تشغيل: **${song.title}**`);
-  } catch (e) {
-    console.error('خطأ في تشغيل الأغنية:', e);
-    serverQueue.songs.shift();
-    playSong(guildId, serverQueue.songs[0]);
-  }
-}
 
 // ============================================================
 // ========== الأوامر الرئيسية ==========
@@ -481,7 +476,7 @@ client.on('messageCreate', async (message) => {
 
   autoDelete(message, 20000);
 
-  // ========== المساعدة ==========
+  // ========== المساعدة (محدثة) ==========
   if (cmd === 'مساعدة') {
     const embed = new EmbedBuilder()
       .setTitle('📖 قائمة الأوامر')
@@ -496,8 +491,8 @@ client.on('messageCreate', async (message) => {
         { name: '📊 المستويات', value: '`مستوى` `ترتيب` `تعيين روم_ليفل #قناة`', inline: false },
         { name: '👋 الترحيب', value: '`تعيين ترحيب #قناة` `تعيين رسالة_ترحيب نص` `تعيين صورة_ترحيب رابط` `تعيين عنوان_ترحيب نص`', inline: false },
         { name: '📋 اللوق', value: '`تعيين سجلات #قناة` `اختبار_لوق`', inline: false },
-        { name: '🎵 الأغاني', value: '`تشغيل [رابط/اسم]` `ايقاف` `تخطي` `قائمة_التشغيل`', inline: false },
-        { name: '📥 التحميل', value: '`تحميل [رابط]`', inline: false },
+        { name: '🤖 الأوتو لاين', value: '`تعيين اوتر_لاين #روم نص` `تعيين صورة_اوترلاين رابط` `تعيين تفعيل_اوترلاين` `تعيين تعطيل_اوترلاين`', inline: false },
+        { name: '💬 الردود التلقائية', value: '`رد_تلقائي كلمة رد` `رد_تلقائي_صورة كلمة رد رابط` `حذف_رد_تلقائي كلمة` `عرض_الردود`', inline: false },
         { name: '🎫 التذاكر', value: '`بانل` `عرض_تذكرة` `تعيين تذكرة` (للمتحكمين)', inline: false },
         { name: '🔔 رتب الإشعارات', value: '`رتب` (للمتحكمين)', inline: false },
         { name: '✏️ تغيير الاسم', value: '`تغيير_اسم`', inline: false },
@@ -551,109 +546,132 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // ========== بوت الأغاني ==========
-  if (cmd === 'تشغيل') {
+  // ========== الأوتو لاين ==========
+  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'اوتر_لاين') {
     if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const voiceChannel = message.member.voice.channel;
-    if (!voiceChannel) return message.reply('⚠️ أنت لست في روم صوتي.');
-    const song = args.join(' ');
-    if (!song) return message.reply('⚠️ أدخل رابط أو اسم الأغنية.');
-    const serverQueue = queue.get(guildId);
-    let songInfo;
-    try { songInfo = await play.search(song, { limit: 1 }); } catch (e) { return message.reply('❌ تعذر العثور على الأغنية.'); }
-    if (!songInfo || !songInfo.length) return message.reply('❌ لا توجد نتائج.');
-    const songData = {
-      title: songInfo[0].title,
-      url: songInfo[0].url,
-    };
-    if (!serverQueue) {
-      const queueConstruct = {
-        textChannel: message.channel,
-        voiceChannel: voiceChannel,
-        connection: null,
-        songs: [],
-        volume: 5,
-        playing: true,
-      };
-      queue.set(guildId, queueConstruct);
-      queueConstruct.songs.push(songData);
-      try {
-        const connection = joinVoiceChannel({
-          channelId: voiceChannel.id,
-          guildId: guildId,
-          adapterCreator: message.guild.voiceAdapterCreator,
-        });
-        queueConstruct.connection = connection;
-        await playSong(guildId, queueConstruct.songs[0]);
-      } catch (err) {
-        queue.delete(guildId);
-        return message.reply(`❌ فشل الاتصال: ${err}`);
-      }
-    } else {
-      serverQueue.songs.push(songData);
-      await message.reply(`✅ تم إضافة **${songData.title}** إلى قائمة التشغيل.`);
-    }
-    return;
-  }
-
-  if (cmd === 'ايقاف') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const serverQueue = queue.get(guildId);
-    if (!serverQueue) return message.reply('⚠️ لا توجد أغنية قيد التشغيل.');
-    serverQueue.songs = [];
-    if (serverQueue.connection) serverQueue.connection.destroy();
-    queue.delete(guildId);
-    await message.reply('⏹️ تم إيقاف التشغيل.');
-    return;
-  }
-
-  if (cmd === 'تخطي') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const serverQueue = queue.get(guildId);
-    if (!serverQueue) return message.reply('⚠️ لا توجد أغنية قيد التشغيل.');
-    serverQueue.songs.shift();
-    await playSong(guildId, serverQueue.songs[0]);
-    await message.reply('⏭️ تم تخطي الأغنية.');
-    return;
-  }
-
-  if (cmd === 'قائمة_التشغيل') {
-    const serverQueue = queue.get(guildId);
-    if (!serverQueue || !serverQueue.songs.length) return message.reply('📭 قائمة التشغيل فارغة.');
-    const list = serverQueue.songs.map((s, i) => `${i+1}. ${s.title}`).join('\n');
-    const embed = new EmbedBuilder().setTitle('🎵 قائمة التشغيل').setColor(0xcc0000).setDescription(list).setTimestamp();
+    const channel = message.mentions.channels.first();
+    if (!channel) return message.reply('⚠️ منشن الروم.');
+    const text = args.slice(2).join(' ');
+    if (!text) return message.reply('⚠️ أدخل النص الذي سيرسله البوت.');
+    setAutoLine(guildId, { channelId: channel.id, text, enabled: true });
+    await logToChannel(guildId, { title: '🤖 تعيين أوتو لاين', color: 0xcc0000, description: `**${message.author}** عيّن الأوتو لاين في ${channel}:\n${text}` });
+    const embed = new EmbedBuilder()
+      .setTitle('✅ تم تعيين الأوتو لاين')
+      .setColor(0xcc0000)
+      .setDescription(`**الروم:** ${channel}\n**النص:** ${text}`)
+      .setFooter({ text: 'تم التفعيل تلقائياً.' });
     if (generalImage) embed.setImage(generalImage);
     await message.channel.send({ embeds: [embed] });
     return;
   }
 
-  // ========== نظام التحميل ==========
-  if (cmd === 'تحميل') {
+  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'صورة_اوترلاين') {
     if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const url = args.join(' ');
-    if (!url) return message.reply('⚠️ أدخل رابط التحميل.');
-    try {
-      const info = await play.video_info(url);
-      const embed = new EmbedBuilder()
-        .setTitle('📥 جاري التحميل...')
-        .setDescription(`**${info.video_details.title}**`)
-        .setColor(0xcc0000)
-        .setTimestamp();
-      if (generalImage) embed.setImage(generalImage);
-      await message.channel.send({ embeds: [embed] });
-      const stream = await play.stream(url, { quality: 2 });
-      const fileName = `${info.video_details.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`;
-      const filePath = `./temp/${fileName}`;
-      if (!fs.existsSync('./temp')) fs.mkdirSync('./temp');
-      const writeStream = fs.createWriteStream(filePath);
-      stream.stream.pipe(writeStream);
-      writeStream.on('finish', async () => {
-        await message.channel.send({ files: [filePath] });
-        fs.unlinkSync(filePath);
-      });
-    } catch (e) {
-      await message.reply('❌ فشل التحميل.');
-    }
+    const url = args.slice(1).join(' ');
+    if (!url) return message.reply('⚠️ أدخل رابط الصورة.');
+    setAutoLine(guildId, { image: url });
+    await logToChannel(guildId, { title: '🖼️ تعيين صورة أوتو لاين', color: 0xcc0000, description: `**${message.author}** عيّن صورة الأوتو لاين: ${url}` });
+    const embed = new EmbedBuilder()
+      .setTitle('✅ تم تعيين صورة الأوتو لاين')
+      .setColor(0xcc0000)
+      .setDescription(`[رابط الصورة](${url})`)
+      .setImage(url);
+    if (generalImage) embed.setThumbnail(generalImage);
+    await message.channel.send({ embeds: [embed] });
+    return;
+  }
+
+  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'تفعيل_اوترلاين') {
+    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
+    setAutoLine(guildId, { enabled: true });
+    await logToChannel(guildId, { title: '✅ تفعيل أوتو لاين', color: 0xcc0000, description: `**${message.author}** فعّل الأوتو لاين.` });
+    const embed = new EmbedBuilder()
+      .setTitle('✅ تم تفعيل الأوتو لاين')
+      .setColor(0xcc0000)
+      .setDescription('تم تشغيل النظام. سيرد البوت تلقائياً في الروم المحدد.');
+    if (generalImage) embed.setImage(generalImage);
+    await message.channel.send({ embeds: [embed] });
+    return;
+  }
+
+  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'تعطيل_اوترلاين') {
+    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
+    setAutoLine(guildId, { enabled: false });
+    await logToChannel(guildId, { title: '⏹️ تعطيل أوتو لاين', color: 0xcc0000, description: `**${message.author}** عطّل الأوتو لاين.` });
+    const embed = new EmbedBuilder()
+      .setTitle('⏹️ تم تعطيل الأوتو لاين')
+      .setColor(0xcc0000)
+      .setDescription('تم إيقاف النظام. لن يرد البوت تلقائياً حتى يتم تفعيله مرة أخرى.');
+    if (generalImage) embed.setImage(generalImage);
+    await message.channel.send({ embeds: [embed] });
+    return;
+  }
+
+  // ========== الردود التلقائية ==========
+  if (cmd === 'رد_تلقائي') {
+    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
+    const keyword = args[0];
+    const reply = args.slice(1).join(' ');
+    if (!keyword || !reply) return message.reply('⚠️ الصيغة: `!رد_تلقائي [الكلمة] [الرد]`');
+    const added = addAutoReply(guildId, keyword, reply);
+    await logToChannel(guildId, { title: '💬 إضافة رد تلقائي', color: 0xcc0000, description: `**${message.author}** أضاف رداً تلقائياً:\n**${keyword}** → ${reply}` });
+    const embed = new EmbedBuilder()
+      .setTitle(added ? '✅ تم إضافة رد تلقائي' : '🔄 تم تحديث رد تلقائي')
+      .setColor(0xcc0000)
+      .setDescription(`**الكلمة:** ${keyword}\n**الرد:** ${reply}`)
+      .setFooter({ text: 'سيرد البوت تلقائياً عند كتابة هذه الكلمة.' });
+    if (generalImage) embed.setImage(generalImage);
+    await message.channel.send({ embeds: [embed] });
+    return;
+  }
+
+  if (cmd === 'رد_تلقائي_صورة') {
+    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
+    const keyword = args[0];
+    const image = args[args.length - 1];
+    const reply = args.slice(1, -1).join(' ');
+    if (!keyword || !reply || !image) return message.reply('⚠️ الصيغة: `!رد_تلقائي_صورة [الكلمة] [الرد] [رابط_الصورة]`');
+    if (!image.match(/^https?:\/\/.+/)) return message.reply('⚠️ الرابط غير صالح.');
+    const added = addAutoReply(guildId, keyword, reply, image);
+    await logToChannel(guildId, { title: '💬 إضافة رد تلقائي مع صورة', color: 0xcc0000, description: `**${message.author}** أضاف رداً تلقائياً مع صورة:\n**${keyword}** → ${reply}` });
+    const embed = new EmbedBuilder()
+      .setTitle(added ? '✅ تم إضافة رد تلقائي مع صورة' : '🔄 تم تحديث رد تلقائي مع صورة')
+      .setColor(0xcc0000)
+      .setDescription(`**الكلمة:** ${keyword}\n**الرد:** ${reply}`)
+      .setImage(image)
+      .setFooter({ text: 'سيرد البوت مع الصورة تلقائياً.' });
+    if (generalImage) embed.setThumbnail(generalImage);
+    await message.channel.send({ embeds: [embed] });
+    return;
+  }
+
+  if (cmd === 'حذف_رد_تلقائي') {
+    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
+    const keyword = args.join(' ');
+    if (!keyword) return message.reply('⚠️ اكتب الكلمة المفتاحية التي تريد حذفها.');
+    const removed = removeAutoReply(guildId, keyword);
+    if (!removed) return message.reply(`⚠️ لا يوجد رد تلقائي للكلمة "${keyword}".`);
+    await logToChannel(guildId, { title: '🗑️ حذف رد تلقائي', color: 0xcc0000, description: `**${message.author}** حذف الرد التلقائي للكلمة **${keyword}**` });
+    const embed = new EmbedBuilder()
+      .setTitle('🗑️ تم حذف الرد التلقائي')
+      .setColor(0xcc0000)
+      .setDescription(`تم حذف الرد التلقائي للكلمة: **${keyword}**`);
+    if (generalImage) embed.setImage(generalImage);
+    await message.channel.send({ embeds: [embed] });
+    return;
+  }
+
+  if (cmd === 'عرض_الردود') {
+    const replies = getAutoReplies(guildId);
+    if (!replies.length) return message.reply('📭 لا توجد ردود تلقائية في هذا السيرفر.');
+    const list = replies.map((r, i) => `${i+1}. **${r.keyword}** → ${r.reply}${r.image ? ' (🖼️)' : ''}`).join('\n');
+    const embed = new EmbedBuilder()
+      .setTitle('💬 قائمة الردود التلقائية')
+      .setColor(0xcc0000)
+      .setDescription(list)
+      .setFooter({ text: `عدد الردود: ${replies.length}` });
+    if (generalImage) embed.setImage(generalImage);
+    await message.channel.send({ embeds: [embed] });
     return;
   }
 
@@ -1289,148 +1307,6 @@ client.on('messageCreate', async (message) => {
     if (generalImage) embed.setImage(generalImage);
     const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('open_name_modal').setLabel('✏️ تغيير الاسم').setStyle(ButtonStyle.Secondary));
     await message.channel.send({ embeds: [embed], components: [row] });
-    return;
-  }
-
-  // ========== الأوتو لاين ==========
-  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'اوتر_لاين') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const channel = message.mentions.channels.first();
-    if (!channel) return message.reply('⚠️ منشن الروم.');
-    const text = args.slice(2).join(' ');
-    if (!text) return message.reply('⚠️ أدخل النص.');
-    setAutoLine(guildId, { channelId: channel.id, text, enabled: true });
-    await logToChannel(guildId, { title: '🤖 تعيين أوتو لاين', color: 0xcc0000, description: `**${message.author}** عيّن الأوتو لاين في ${channel}:\n${text}` });
-    const embed = new EmbedBuilder().setTitle('✅ تم تعيين الأوتو لاين').setColor(0xcc0000).setDescription(`**الروم:** ${channel}\n**النص:** ${text}`).setFooter({ text: 'تم التفعيل تلقائياً.' });
-    if (generalImage) embed.setImage(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
-
-  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'صورة_اوترلاين') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const url = args.slice(1).join(' ');
-    if (!url) return message.reply('⚠️ أدخل رابط الصورة.');
-    setAutoLine(guildId, { image: url });
-    await logToChannel(guildId, { title: '🖼️ تعيين صورة أوتو لاين', color: 0xcc0000, description: `**${message.author}** عيّن صورة الأوتو لاين: ${url}` });
-    const embed = new EmbedBuilder().setTitle('✅ تم تعيين صورة الأوتو لاين').setColor(0xcc0000).setDescription(`[رابط الصورة](${url})`).setImage(url);
-    if (generalImage) embed.setThumbnail(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
-
-  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'تفعيل_اوترلاين') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    setAutoLine(guildId, { enabled: true });
-    await logToChannel(guildId, { title: '✅ تفعيل أوتو لاين', color: 0xcc0000, description: `**${message.author}** فعّل الأوتو لاين.` });
-    const embed = new EmbedBuilder().setTitle('✅ تم تفعيل الأوتو لاين').setColor(0xcc0000).setDescription('تم تشغيل النظام. سيرد البوت تلقائياً في الروم المحدد.');
-    if (generalImage) embed.setImage(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
-
-  if (cmd === 'تعيين' && args[0]?.toLowerCase() === 'تعطيل_اوترلاين') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    setAutoLine(guildId, { enabled: false });
-    await logToChannel(guildId, { title: '⏹️ تعطيل أوتو لاين', color: 0xcc0000, description: `**${message.author}** عطّل الأوتو لاين.` });
-    const embed = new EmbedBuilder().setTitle('⏹️ تم تعطيل الأوتو لاين').setColor(0xcc0000).setDescription('تم إيقاف النظام. لن يرد البوت تلقائياً حتى يتم تفعيله مرة أخرى.');
-    if (generalImage) embed.setImage(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
-
-  // ========== الردود التلقائية ==========
-  if (cmd === 'رد_تلقائي') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const keyword = args[0];
-    const reply = args.slice(1).join(' ');
-    if (!keyword || !reply) return message.reply('⚠️ الصيغة: `!رد_تلقائي [الكلمة] [الرد]`');
-    const added = addAutoReply(guildId, keyword, reply);
-    await logToChannel(guildId, { title: '💬 إضافة رد تلقائي', color: 0xcc0000, description: `**${message.author}** أضاف رداً تلقائياً:\n**${keyword}** → ${reply}` });
-    const embed = new EmbedBuilder().setTitle(added ? '✅ تم إضافة رد تلقائي' : '🔄 تم تحديث رد تلقائي').setColor(0xcc0000).setDescription(`**الكلمة:** ${keyword}\n**الرد:** ${reply}`).setFooter({ text: 'سيرد البوت تلقائياً عند كتابة هذه الكلمة.' });
-    if (generalImage) embed.setImage(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
-
-  if (cmd === 'رد_تلقائي_صورة') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const keyword = args[0];
-    const image = args[args.length - 1];
-    const reply = args.slice(1, -1).join(' ');
-    if (!keyword || !reply || !image) return message.reply('⚠️ الصيغة: `!رد_تلقائي_صورة [الكلمة] [الرد] [رابط_الصورة]`');
-    if (!image.match(/^https?:\/\/.+/)) return message.reply('⚠️ الرابط غير صالح.');
-    const added = addAutoReply(guildId, keyword, reply, image);
-    await logToChannel(guildId, { title: '💬 إضافة رد تلقائي مع صورة', color: 0xcc0000, description: `**${message.author}** أضاف رداً تلقائياً مع صورة:\n**${keyword}** → ${reply}` });
-    const embed = new EmbedBuilder().setTitle(added ? '✅ تم إضافة رد تلقائي مع صورة' : '🔄 تم تحديث رد تلقائي مع صورة').setColor(0xcc0000).setDescription(`**الكلمة:** ${keyword}\n**الرد:** ${reply}`).setImage(image).setFooter({ text: 'سيرد البوت مع الصورة تلقائياً.' });
-    if (generalImage) embed.setThumbnail(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
-
-  if (cmd === 'حذف_رد_تلقائي') {
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const keyword = args.join(' ');
-    if (!keyword) return message.reply('⚠️ اكتب الكلمة المفتاحية.');
-    const removed = removeAutoReply(guildId, keyword);
-    if (!removed) return message.reply(`⚠️ لا يوجد رد تلقائي للكلمة "${keyword}".`);
-    await logToChannel(guildId, { title: '🗑️ حذف رد تلقائي', color: 0xcc0000, description: `**${message.author}** حذف الرد التلقائي للكلمة **${keyword}**` });
-    const embed = new EmbedBuilder().setTitle('🗑️ تم حذف الرد التلقائي').setColor(0xcc0000).setDescription(`تم حذف الرد التلقائي للكلمة: **${keyword}**`);
-    if (generalImage) embed.setImage(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
-
-  if (cmd === 'عرض_الردود') {
-    const replies = getAutoReplies(guildId);
-    if (!replies.length) return message.reply('📭 لا توجد ردود تلقائية في هذا السيرفر.');
-    const list = replies.map((r, i) => `${i+1}. **${r.keyword}** → ${r.reply}${r.image ? ' (🖼️)' : ''}`).join('\n');
-    const embed = new EmbedBuilder().setTitle('💬 قائمة الردود التلقائية').setColor(0xcc0000).setDescription(list).setFooter({ text: `عدد الردود: ${replies.length}` });
-    if (generalImage) embed.setImage(generalImage);
-    await message.channel.send({ embeds: [embed] });
-    return;
-  }
-
-  // ========== الإعدادات العامة ==========
-  if (cmd === 'تعيين') {
-    if (args[0]?.toLowerCase() === 'تذكرة' || args[0]?.toLowerCase() === 'اوتر_لاين' ||
-        args[0]?.toLowerCase() === 'صورة_اوترلاين' || args[0]?.toLowerCase() === 'تفعيل_اوترلاين' ||
-        args[0]?.toLowerCase() === 'تعطيل_اوترلاين' || args[0]?.toLowerCase() === 'روم_ليفل' ||
-        args[0]?.toLowerCase() === 'ترحيب' || args[0]?.toLowerCase() === 'رسالة_ترحيب' ||
-        args[0]?.toLowerCase() === 'صورة_ترحيب' || args[0]?.toLowerCase() === 'سجلات' ||
-        args[0]?.toLowerCase() === 'عنوان_ترحيب') return;
-    if (!hasPermission(message.member, guildId)) return message.reply('❌ تحتاج صلاحية متحكم.');
-    const sub = args[0]?.toLowerCase();
-    const value = args.slice(1).join(' ');
-    if (sub === 'دور_دخول') {
-      const role = message.mentions.roles.first();
-      if (!role) return message.reply('⚠️ منشن الدور.');
-      updateGuildConfig(guildId, { joinRole: role.id });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن دور الدخول إلى ${role.name}.`, footer: 'الإعدادات' });
-      await message.reply(`✅ تم تعيين دور الدخول إلى ${role}`);
-    } else if (sub === 'صورة_بانل') {
-      if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
-      updateGuildConfig(guildId, { ticketPanelImage: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة البانل: ${value}`, footer: 'الإعدادات' });
-      await message.reply(`✅ تم تعيين صورة البانل: ${value}`);
-    } else if (sub === 'صورة_رتب') {
-      if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
-      updateGuildConfig(guildId, { rolesImage: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة رتب الإشعارات: ${value}`, footer: 'الإعدادات' });
-      await message.reply(`✅ تم تعيين صورة رتب الإشعارات: ${value}`);
-    } else if (sub === 'صورة_بنر') {
-      if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
-      updateGuildConfig(guildId, { bannerImage: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة البنر: ${value}`, footer: 'الإعدادات' });
-      await message.reply(`✅ تم تعيين صورة البنر: ${value}`);
-    } else if (sub === 'صورة_عامة') {
-      if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
-      updateGuildConfig(guildId, { generalImage: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن الصورة العامة: ${value}`, footer: 'الإعدادات' });
-      await message.reply(`✅ تم تعيين الصورة العامة: ${value}`);
-    } else {
-      await message.reply('⚠️ الأوامر المتاحة: `!تعيين دور_دخول @دور` ، `!تعيين صورة_بانل رابط` ، `!تعيين صورة_رتب رابط` ، `!تعيين صورة_بنر رابط` ، `!تعيين صورة_عامة رابط`');
-    }
     return;
   }
 
