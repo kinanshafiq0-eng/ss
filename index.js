@@ -1,22 +1,8 @@
-const {
-  Client,
-  GatewayIntentBits,
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  StringSelectMenuBuilder,
-  PermissionsBitField,
-  ChannelType,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  ActivityType,
-} = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionsBitField, ChannelType, ModalBuilder, TextInputBuilder, TextInputStyle, ActivityType } = require('discord.js');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const express = require('express');
 const fs = require('fs');
-const ytdl = require('ytdl-core');
+const play = require('play-dl');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 const app = express();
 const port = process.env.PORT || 3000;
@@ -361,10 +347,7 @@ client.on('messageUpdate', async (oldMessage, newMessage) => {
 // ============================================================
 
 client.on('voiceStateUpdate', async (oldState, newState) => {
-  // إذا كان المستخدم هو البوت نفسه، لا تفعل شيئاً (دفن لي)
   if (newState.member.id === client.user.id) return;
-  
-  // باقي الكود الخاص بتحديثات الصوت (إن وجد)
 });
 
 // ============================================================
@@ -453,7 +436,7 @@ client.on('messageCreate', async (message) => {
 });
 
 // ============================================================
-// ========== نظام بوت الأغاني ==========
+// ========== نظام بوت الأغاني (باستخدام play-dl) ==========
 // ============================================================
 
 const queue = new Map();
@@ -461,13 +444,13 @@ const queue = new Map();
 async function playSong(guildId, song) {
   const serverQueue = queue.get(guildId);
   if (!song) {
-    serverQueue.connection.destroy();
+    if (serverQueue && serverQueue.connection) serverQueue.connection.destroy();
     queue.delete(guildId);
     return;
   }
   try {
-    const stream = ytdl(song.url, { filter: 'audioonly', quality: 'highestaudio' });
-    const resource = createAudioResource(stream);
+    const stream = await play.stream(song.url, { quality: 2 });
+    const resource = createAudioResource(stream.stream, { inputType: stream.type });
     const player = createAudioPlayer();
     serverQueue.connection.subscribe(player);
     player.play(resource);
@@ -477,6 +460,7 @@ async function playSong(guildId, song) {
     });
     await serverQueue.textChannel.send(`🎵 الآن يتم تشغيل: **${song.title}**`);
   } catch (e) {
+    console.error('خطأ في تشغيل الأغنية:', e);
     serverQueue.songs.shift();
     playSong(guildId, serverQueue.songs[0]);
   }
@@ -495,7 +479,6 @@ client.on('messageCreate', async (message) => {
   const config = getGuildConfig(guildId);
   const generalImage = getGeneralImage(message.guild, config);
 
-  // ========== حذف الأمر بعد 20 ثانية ==========
   autoDelete(message, 20000);
 
   // ========== المساعدة ==========
@@ -577,10 +560,11 @@ client.on('messageCreate', async (message) => {
     if (!song) return message.reply('⚠️ أدخل رابط أو اسم الأغنية.');
     const serverQueue = queue.get(guildId);
     let songInfo;
-    try { songInfo = await ytdl.getInfo(song); } catch (e) { return message.reply('❌ تعذر العثور على الأغنية.'); }
+    try { songInfo = await play.search(song, { limit: 1 }); } catch (e) { return message.reply('❌ تعذر العثور على الأغنية.'); }
+    if (!songInfo || !songInfo.length) return message.reply('❌ لا توجد نتائج.');
     const songData = {
-      title: songInfo.videoDetails.title,
-      url: songInfo.videoDetails.video_url,
+      title: songInfo[0].title,
+      url: songInfo[0].url,
     };
     if (!serverQueue) {
       const queueConstruct = {
@@ -617,7 +601,7 @@ client.on('messageCreate', async (message) => {
     const serverQueue = queue.get(guildId);
     if (!serverQueue) return message.reply('⚠️ لا توجد أغنية قيد التشغيل.');
     serverQueue.songs = [];
-    serverQueue.connection.destroy();
+    if (serverQueue.connection) serverQueue.connection.destroy();
     queue.delete(guildId);
     await message.reply('⏹️ تم إيقاف التشغيل.');
     return;
@@ -649,20 +633,20 @@ client.on('messageCreate', async (message) => {
     const url = args.join(' ');
     if (!url) return message.reply('⚠️ أدخل رابط التحميل.');
     try {
-      const info = await ytdl.getInfo(url);
+      const info = await play.video_info(url);
       const embed = new EmbedBuilder()
         .setTitle('📥 جاري التحميل...')
-        .setDescription(`**${info.videoDetails.title}**`)
+        .setDescription(`**${info.video_details.title}**`)
         .setColor(0xcc0000)
         .setTimestamp();
       if (generalImage) embed.setImage(generalImage);
       await message.channel.send({ embeds: [embed] });
-      const stream = ytdl(url, { filter: 'audioonly', quality: 'highestaudio' });
-      const fileName = `${info.videoDetails.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`;
+      const stream = await play.stream(url, { quality: 2 });
+      const fileName = `${info.video_details.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`;
       const filePath = `./temp/${fileName}`;
       if (!fs.existsSync('./temp')) fs.mkdirSync('./temp');
       const writeStream = fs.createWriteStream(filePath);
-      stream.pipe(writeStream);
+      stream.stream.pipe(writeStream);
       writeStream.on('finish', async () => {
         await message.channel.send({ files: [filePath] });
         fs.unlinkSync(filePath);
