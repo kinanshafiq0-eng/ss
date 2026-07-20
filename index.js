@@ -469,7 +469,7 @@ client.on('messageCreate', async (message) => {
 
   autoDelete(message, 20000);
 
-  // ========== المساعدة (محدثة) ==========
+  // ========== المساعدة ==========
   if (cmd === 'مساعدة') {
     const embed = new EmbedBuilder()
       .setTitle('📖 قائمة الأوامر')
@@ -501,14 +501,14 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // ==== أمر ig (تحميل ريلز إنستغرام) باستخدام instagram-url-direct + fetch ====
+  // ==== أمر ig (تحميل ريلز إنستغرام) – المُصحح ====
   if (cmd === 'ig') {
     const url = args[0];
     if (!url) return message.reply('⚠️ أدخل رابط الرقصة (ريلز) من إنستغرام.');
     const loadingMsg = await message.reply('⏳ جاري تحميل الفيديو...');
     try {
-      const instagramGetUrl = require('instagram-url-direct');
-      const result = await instagramGetUrl(url);
+      const { getUrl } = require('instagram-url-direct');
+      const result = await getUrl(url);
       const videoUrl = Array.isArray(result) ? result[0]?.url : result.url;
       if (!videoUrl) throw new Error('تعذر استخراج رابط الفيديو.');
       const response = await fetch(videoUrl);
@@ -562,7 +562,7 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // ========== أمر "تعيين" (معاد بناؤه بالكامل) ==========
+  // ========== أمر "تعيين" ==========
   if (cmd === 'تعيين') {
     if (!hasPermission(message.member, guildId)) {
       return message.reply('❌ تحتاج صلاحية متحكم.');
@@ -571,7 +571,6 @@ client.on('messageCreate', async (message) => {
     const sub = args[0]?.toLowerCase();
     const value = args.slice(1).join(' ');
 
-    // إذا لم يحدد خياراً، عرض القائمة
     if (!sub) {
       const embed = new EmbedBuilder()
         .setTitle('⚙️ أوامر الإعدادات')
@@ -597,36 +596,36 @@ client.on('messageCreate', async (message) => {
       const channel = message.mentions.channels.first();
       if (!channel) {
         updateGuildConfig(guildId, { welcomeChannel: null });
-        await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** ألغى قناة الترحيب.`, footer: 'الإعدادات' });
+        await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** ألغى قناة الترحيب.` });
         return message.reply('✅ تم إلغاء تحديد قناة الترحيب.');
       }
       updateGuildConfig(guildId, { welcomeChannel: channel.id });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن قناة الترحيب إلى ${channel}.`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن قناة الترحيب إلى ${channel}.` });
       return message.reply(`✅ تم تعيين قناة الترحيب إلى ${channel}`);
     }
 
     if (sub === 'رسالة_ترحيب') {
       if (!value) return message.reply('⚠️ أدخل نص الترحيب الجديد.');
       updateGuildConfig(guildId, { welcomeMessage: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** غيّر نص الترحيب إلى:\n${value}`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** غيّر نص الترحيب إلى:\n${value}` });
       return message.reply(`✅ تم تعيين نص الترحيب:\n${value}`);
     }
 
     if (sub === 'صورة_ترحيب') {
       if (!value) {
         updateGuildConfig(guildId, { welcomeImage: null });
-        await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** ألغى صورة الترحيب.`, footer: 'الإعدادات' });
+        await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** ألغى صورة الترحيب.` });
         return message.reply('✅ تم إلغاء صورة الترحيب.');
       }
       updateGuildConfig(guildId, { welcomeImage: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة الترحيب: ${value}`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة الترحيب: ${value}` });
       return message.reply(`✅ تم تعيين صورة الترحيب: ${value}`);
     }
 
     if (sub === 'عنوان_ترحيب') {
       if (!value) return message.reply('⚠️ أدخل العنوان الجديد.');
       updateGuildConfig(guildId, { welcomeTitle: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** غيّر عنوان الترحيب إلى: "${value}"`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** غيّر عنوان الترحيب إلى: "${value}"` });
       return message.reply(`✅ تم تعيين عنوان الترحيب: "${value}"`);
     }
 
@@ -638,7 +637,7 @@ client.on('messageCreate', async (message) => {
         return message.reply('✅ تم إلغاء تعيين قناة اللوق.');
       }
       updateGuildConfig(guildId, { logChannel: channel.id });
-      await logToChannel(guildId, { title: '📋 تم تعيين قناة اللوق', color: 0xcc0000, description: `**${message.author}** عيّن قناة اللوق إلى ${channel}`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '📋 تم تعيين قناة اللوق', color: 0xcc0000, description: `**${message.author}** عيّن قناة اللوق إلى ${channel}` });
       return message.reply(`✅ تم تعيين قناة اللوق إلى ${channel}`);
     }
 
@@ -647,11 +646,11 @@ client.on('messageCreate', async (message) => {
       const channel = message.mentions.channels.first();
       if (!channel) {
         updateGuildConfig(guildId, { levelChannelId: null });
-        await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** ألغى قناة الليفل.`, footer: 'الإعدادات' });
+        await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** ألغى قناة الليفل.` });
         return message.reply('✅ تم إلغاء تحديد قناة الليفل.');
       }
       updateGuildConfig(guildId, { levelChannelId: channel.id });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن قناة الليفل إلى ${channel}.`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن قناة الليفل إلى ${channel}.` });
       return message.reply(`✅ تم تعيين قناة الليفل إلى ${channel}`);
     }
 
@@ -716,7 +715,7 @@ client.on('messageCreate', async (message) => {
       const role = message.mentions.roles.first();
       if (!role) return message.reply('⚠️ منشن الدور.');
       updateGuildConfig(guildId, { joinRole: role.id });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن دور الدخول إلى ${role.name}.`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن دور الدخول إلى ${role.name}.` });
       return message.reply(`✅ تم تعيين دور الدخول إلى ${role}`);
     }
 
@@ -724,7 +723,7 @@ client.on('messageCreate', async (message) => {
     if (sub === 'صورة_بانل') {
       if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
       updateGuildConfig(guildId, { ticketPanelImage: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة البانل: ${value}`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة البانل: ${value}` });
       return message.reply(`✅ تم تعيين صورة البانل: ${value}`);
     }
 
@@ -732,7 +731,7 @@ client.on('messageCreate', async (message) => {
     if (sub === 'صورة_رتب') {
       if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
       updateGuildConfig(guildId, { rolesImage: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة رتب الإشعارات: ${value}`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة رتب الإشعارات: ${value}` });
       return message.reply(`✅ تم تعيين صورة رتب الإشعارات: ${value}`);
     }
 
@@ -740,7 +739,7 @@ client.on('messageCreate', async (message) => {
     if (sub === 'صورة_بنر') {
       if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
       updateGuildConfig(guildId, { bannerImage: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة البنر: ${value}`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة البنر: ${value}` });
       return message.reply(`✅ تم تعيين صورة البنر: ${value}`);
     }
 
@@ -748,7 +747,7 @@ client.on('messageCreate', async (message) => {
     if (sub === 'صورة_عامة') {
       if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
       updateGuildConfig(guildId, { generalImage: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن الصورة العامة: ${value}`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن الصورة العامة: ${value}` });
       return message.reply(`✅ تم تعيين الصورة العامة: ${value}`);
     }
 
@@ -757,39 +756,38 @@ client.on('messageCreate', async (message) => {
       const channel = message.mentions.channels.first();
       if (!channel) return message.reply('⚠️ منشن القناة.');
       updateGuildConfig(guildId, { suggestionsChannel: channel.id });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن قناة الاقتراحات إلى ${channel}`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن قناة الاقتراحات إلى ${channel}` });
       return message.reply(`✅ تم تعيين قناة الاقتراحات إلى ${channel}`);
     }
 
     if (sub === 'عنوان_اقتراح') {
       if (!value) return message.reply('⚠️ أدخل العنوان.');
       updateGuildConfig(guildId, { suggestionsTitle: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** غيّر عنوان الاقتراحات إلى: "${value}"`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** غيّر عنوان الاقتراحات إلى: "${value}"` });
       return message.reply(`✅ تم تعيين عنوان الاقتراحات: "${value}"`);
     }
 
     if (sub === 'وصف_اقتراح') {
       if (!value) return message.reply('⚠️ أدخل الوصف.');
       updateGuildConfig(guildId, { suggestionsDescription: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** غيّر وصف الاقتراحات إلى:\n${value}`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** غيّر وصف الاقتراحات إلى:\n${value}` });
       return message.reply(`✅ تم تعيين وصف الاقتراحات:\n${value}`);
     }
 
     if (sub === 'لون_اقتراح') {
       if (!value || !value.match(/^#[0-9a-fA-F]{6}$/)) return message.reply('⚠️ أدخل لوناً صحيحاً بصيغة Hex مثل `#ff0000`.');
       updateGuildConfig(guildId, { suggestionsColor: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن لون الاقتراحات إلى ${value}`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن لون الاقتراحات إلى ${value}` });
       return message.reply(`✅ تم تعيين لون الاقتراحات: ${value}`);
     }
 
     if (sub === 'صورة_اقتراح') {
       if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
       updateGuildConfig(guildId, { suggestionsImage: value });
-      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة الاقتراحات: ${value}`, footer: 'الإعدادات' });
+      await logToChannel(guildId, { title: '⚙️ إعدادات', color: 0xcc0000, description: `**${message.author}** عيّن صورة الاقتراحات: ${value}` });
       return message.reply(`✅ تم تعيين صورة الاقتراحات: ${value}`);
     }
 
-    // ===== خيار غير معروف =====
     return message.reply('⚠️ خيار غير معروف. استخدم `!تعيين` لعرض القائمة.');
   }
 
