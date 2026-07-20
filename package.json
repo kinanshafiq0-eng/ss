@@ -1,7 +1,7 @@
 {
-  "name": "team-wolf-bot",
+  "name": "advanced-bot",
   "version": "1.0.0",
-  "description": "بوت TEAM WOLF المتكامل",
+  "description": "بوت ديسكورد متكامل",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
