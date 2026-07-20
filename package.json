@@ -1,11 +1,8 @@
 {
   "name": "discord-bot-advanced",
   "version": "1.0.0",
-  "description": "بوت ديسكورد متعدد المميزات",
   "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
+  "scripts": { "start": "node index.js" },
   "dependencies": {
     "discord.js": "^14.15.3",
     "@napi-rs/canvas": "^0.1.53",
