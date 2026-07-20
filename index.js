@@ -361,14 +361,6 @@ client.on('messageUpdate', async (oldMessage, newMessage) => {
 });
 
 // ============================================================
-// ========== نظام البوت الصامت في الرومات الصوتية ==========
-// ============================================================
-
-client.on('voiceStateUpdate', async (oldState, newState) => {
-  if (newState.member.id === client.user.id) return;
-});
-
-// ============================================================
 // ========== نظام المستويات ==========
 // ============================================================
 
@@ -415,7 +407,7 @@ client.on('messageCreate', async (message) => {
 });
 
 // ============================================================
-// ========== نظام الأوتو لاين والردود التلقائية ==========
+// ========== نظام الأوتو لاين والردود التلقائية (مُحسَّن) ==========
 // ============================================================
 
 client.on('messageCreate', async (message) => {
@@ -423,33 +415,47 @@ client.on('messageCreate', async (message) => {
   if (message.content.startsWith('!')) return;
 
   const guildId = message.guild.id;
-
   const auto = getAutoLine(guildId);
-  if (auto.enabled && auto.channelId && auto.text && message.channel.id === auto.channelId) {
-    if (auto.image) {
-      const embed = new EmbedBuilder()
-        .setDescription(auto.text)
-        .setColor(0xcc0000)
-        .setImage(auto.image)
-        .setTimestamp();
-      await message.reply({ embeds: [embed] }).catch(() => {});
-    } else {
-      await message.reply(auto.text).catch(() => {});
+
+  // التحقق من وجود الإعدادات وأنها مفعلة
+  if (auto && auto.enabled && auto.channelId && auto.text) {
+    // جلب القناة (حتى لو كانت خارج الكاش)
+    const channel = client.channels.cache.get(auto.channelId) || await client.channels.fetch(auto.channelId).catch(() => null);
+    if (channel && message.channel.id === channel.id) {
+      try {
+        if (auto.image) {
+          const embed = new EmbedBuilder()
+            .setDescription(auto.text)
+            .setColor(0xcc0000)
+            .setImage(auto.image)
+            .setTimestamp();
+          await message.reply({ embeds: [embed] });
+        } else {
+          await message.reply(auto.text);
+        }
+      } catch (e) {
+        await channel.send(auto.text).catch(() => {});
+      }
+      return; // مهم: يمنع تشغيل الردود التلقائية الأخرى بعد الأوتو لاين
     }
-    return;
   }
 
+  // الردود التلقائية
   const autoReply = findAutoReply(guildId, message.content);
   if (autoReply) {
-    if (autoReply.image) {
-      const embed = new EmbedBuilder()
-        .setDescription(autoReply.reply)
-        .setColor(0xcc0000)
-        .setImage(autoReply.image)
-        .setTimestamp();
-      await message.reply({ embeds: [embed] }).catch(() => {});
-    } else {
-      await message.reply(autoReply.reply).catch(() => {});
+    try {
+      if (autoReply.image) {
+        const embed = new EmbedBuilder()
+          .setDescription(autoReply.reply)
+          .setColor(0xcc0000)
+          .setImage(autoReply.image)
+          .setTimestamp();
+        await message.reply({ embeds: [embed] });
+      } else {
+        await message.reply(autoReply.reply);
+      }
+    } catch (e) {
+      await message.channel.send(autoReply.reply).catch(() => {});
     }
   }
 });
@@ -501,14 +507,14 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // ==== أمر ig (تحميل ريلز إنستغرام) – المُصحح ====
+  // ==== أمر ig (تحميل ريلز إنستغرام) – التصحيح النهائي ====
   if (cmd === 'ig') {
     const url = args[0];
     if (!url) return message.reply('⚠️ أدخل رابط الرقصة (ريلز) من إنستغرام.');
     const loadingMsg = await message.reply('⏳ جاري تحميل الفيديو...');
     try {
-      const { getUrl } = require('instagram-url-direct');
-      const result = await getUrl(url);
+      const instagramGetUrl = require('instagram-url-direct');
+      const result = await instagramGetUrl(url);
       const videoUrl = Array.isArray(result) ? result[0]?.url : result.url;
       if (!videoUrl) throw new Error('تعذر استخراج رابط الفيديو.');
       const response = await fetch(videoUrl);
