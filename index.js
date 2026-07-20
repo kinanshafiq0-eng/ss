@@ -16,7 +16,6 @@ const {
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const express = require('express');
 const fs = require('fs');
-const { execSync } = require('child_process');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -502,17 +501,19 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // ==== أمر ig (تحميل ريلز إنستغرام) باستخدام yt-dlp ====
+  // ==== أمر ig (تحميل ريلز إنستغرام) باستخدام instagram-url-direct + fetch ====
   if (cmd === 'ig') {
     const url = args[0];
     if (!url) return message.reply('⚠️ أدخل رابط الرقصة (ريلز) من إنستغرام.');
     const loadingMsg = await message.reply('⏳ جاري تحميل الفيديو...');
     try {
-      const videoUrl = execSync(`yt-dlp -g -f best "${url}"`, { stdio: ['pipe', 'pipe', 'pipe'] }).toString().trim();
+      const instagramGetUrl = require('instagram-url-direct');
+      const result = await instagramGetUrl(url);
+      const videoUrl = Array.isArray(result) ? result[0]?.url : result.url;
       if (!videoUrl) throw new Error('تعذر استخراج رابط الفيديو.');
-      const res = await fetch(videoUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const buffer = Buffer.from(await res.arrayBuffer());
+      const response = await fetch(videoUrl);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const buffer = Buffer.from(await response.arrayBuffer());
       await message.reply({ files: [{ attachment: buffer, name: 'reel.mp4' }] });
       await loadingMsg.delete().catch(() => {});
     } catch (error) {
