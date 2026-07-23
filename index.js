@@ -1,5 +1,5 @@
 // ============================================================
-// البوت - ثيم داكن وعملة OG - بدون قاعدة بيانات خارجية
+// البوت - ثيم داكن وعملة OG - يدعم الأوتو لاين في عدة رومات
 // ============================================================
 
 const {
@@ -33,7 +33,7 @@ const db = {
   memberCount: {},
   ticketSettings: {},
   warns: {},
-  autoLine: {},
+  autoLine: {},      // الشكل الجديد: { guildId: { channelId: { text, image, enabled } } }
   autoReplies: {},
   users: {},
   levelRoles: {},
@@ -95,7 +95,7 @@ function getGuildConfig(guildId) {
       suggestionsChannel: null,
       suggestionsTitle: '💡 قناة الاقتراحات',
       suggestionsDescription: 'هل لديك فكرة لتطوير السيرفر؟ شاركنا اقتراحك!',
-      suggestionsColor: '#2b2d31',  // تم تغييره للون الداكن
+      suggestionsColor: '#2b2d31',
       suggestionsImage: null,
     };
   }
@@ -149,16 +149,31 @@ function clearWarns(userId, guildId) {
   saveDB();
 }
 
-// ========== دوال الأوتو لاين ==========
+// ========== دوال الأوتو لاين (الدعم الجديد لعدة رومات) ==========
 function getAutoLine(guildId) {
   if (!db.autoLine[guildId]) {
-    db.autoLine[guildId] = { channelId: null, text: null, image: null, enabled: false };
+    db.autoLine[guildId] = {};
   }
   return db.autoLine[guildId];
 }
 
-function setAutoLine(guildId, data) {
-  db.autoLine[guildId] = { ...getAutoLine(guildId), ...data };
+function getAutoLineChannel(guildId, channelId) {
+  const guildAuto = getAutoLine(guildId);
+  if (!guildAuto[channelId]) {
+    guildAuto[channelId] = { text: null, image: null, enabled: false };
+  }
+  return guildAuto[channelId];
+}
+
+function setAutoLineChannel(guildId, channelId, data) {
+  const guildAuto = getAutoLine(guildId);
+  guildAuto[channelId] = { ...getAutoLineChannel(guildId, channelId), ...data };
+  saveDB();
+}
+
+function deleteAutoLineChannel(guildId, channelId) {
+  const guildAuto = getAutoLine(guildId);
+  delete guildAuto[channelId];
   saveDB();
 }
 
@@ -249,7 +264,8 @@ const client = new Client({
 client.once('ready', () => {
   console.log(`✅ البوت جاهز باسم ${client.user.tag}`);
   if (OWNER_ID) console.log(`👑 صاحب البوت: ${OWNER_ID}`);
-  client.user.setActivity('🔥 !مساعدة | البوت', { type: ActivityType.Watching });
+  // ===== تم تغيير الحالة =====
+  client.user.setActivity('The Kingdom Never Falls.', { type: ActivityType.Watching });
 });
 
 // ============================================================
@@ -263,7 +279,7 @@ async function logToChannel(guildId, data) {
     const channel = client.channels.cache.get(config.logChannel);
     if (!channel) return;
     const embed = new EmbedBuilder()
-      .setColor(data.color || 0x2b2d31)  // لون داكن
+      .setColor(data.color || 0x2b2d31)
       .setTitle(data.title || '📋 سجل')
       .setDescription(data.description || '')
       .setTimestamp();
@@ -284,14 +300,13 @@ async function logToChannel(guildId, data) {
 async function generateWelcomeImage(member, memberCount) {
   const canvas = createCanvas(1200, 600);
   const ctx = canvas.getContext('2d');
-  // خلفية داكنة (تدرج رمادي)
   const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
   gradient.addColorStop(0, '#1a1a1a');
   gradient.addColorStop(0.5, '#2d2d2d');
   gradient.addColorStop(1, '#1a1a1a');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = '#666666';  // رمادي فاتح
+  ctx.strokeStyle = '#666666';
   ctx.lineWidth = 6;
   const borderRadius = 20, x = 30, y = 30, w = canvas.width - 60, h = canvas.height - 60;
   ctx.beginPath();
@@ -501,23 +516,33 @@ client.on('messageCreate', async (message) => {
       saveEconomyData(guildId, userId, eco);
     }
 
-    // ========== نظام الأوتو لاين ==========
-    const auto = getAutoLine(guildId);
-    if (auto.enabled && auto.channelId && (auto.text || auto.image)) {
-      const channel = client.channels.cache.get(auto.channelId) || await client.channels.fetch(auto.channelId).catch(() => null);
-      if (channel && message.channel.id === channel.id) {
+    // ========== نظام الأوتو لاين (متعدد الرومات) ==========
+    // نجلب إعدادات الأوتو لاين لكل القنوات في هذا السيرفر
+    const guildAuto = getAutoLine(guildId);
+    // نتحقق من القناة الحالية
+    const channelAuto = guildAuto[message.channel.id];
+    if (channelAuto && channelAuto.enabled && (channelAuto.text || channelAuto.image)) {
+      const channel = client.channels.cache.get(message.channel.id);
+      if (channel) {
         try {
-          if (auto.text && auto.image) {
-            const embed = new EmbedBuilder().setDescription(auto.text).setColor(0x2b2d31).setImage(auto.image).setTimestamp();
+          if (channelAuto.text && channelAuto.image) {
+            const embed = new EmbedBuilder()
+              .setDescription(channelAuto.text)
+              .setColor(0x2b2d31)
+              .setImage(channelAuto.image)
+              .setTimestamp();
             await channel.send({ embeds: [embed] });
-          } else if (auto.image) {
-            const embed = new EmbedBuilder().setColor(0x2b2d31).setImage(auto.image).setTimestamp();
+          } else if (channelAuto.image) {
+            const embed = new EmbedBuilder()
+              .setColor(0x2b2d31)
+              .setImage(channelAuto.image)
+              .setTimestamp();
             await channel.send({ embeds: [embed] });
-          } else if (auto.text) {
-            await channel.send(auto.text);
+          } else if (channelAuto.text) {
+            await channel.send(channelAuto.text);
           }
         } catch (e) {}
-        return;
+        return; // منع الردود التلقائية في نفس الروم
       }
     }
 
@@ -526,7 +551,11 @@ client.on('messageCreate', async (message) => {
     if (autoReply) {
       try {
         if (autoReply.image) {
-          const embed = new EmbedBuilder().setDescription(autoReply.reply).setColor(0x2b2d31).setImage(autoReply.image).setTimestamp();
+          const embed = new EmbedBuilder()
+            .setDescription(autoReply.reply)
+            .setColor(0x2b2d31)
+            .setImage(autoReply.image)
+            .setTimestamp();
           await message.reply({ embeds: [embed] });
         } else {
           await message.reply(autoReply.reply);
@@ -706,7 +735,7 @@ client.on('messageCreate', async (message) => {
           { name: '📊 المستويات', value: '`مستوى` `ترتيب` `تعيين روم_ليفل #قناة`', inline: false },
           { name: '👋 الترحيب', value: '`تعيين ترحيب #قناة` `تعيين رسالة_ترحيب نص` `تعيين صورة_ترحيب رابط` `تعيين عنوان_ترحيب نص`', inline: false },
           { name: '📋 اللوق', value: '`تعيين سجلات #قناة` `اختبار_لوق`', inline: false },
-          { name: '🤖 الأوتو لاين', value: '`تعيين اوتر_لاين #روم [نص]` `تعيين صورة_اوترلاين رابط` `تفعيل/تعطيل`', inline: false },
+          { name: '🤖 الأوتو لاين (متعدد الرومات)', value: '`تعيين اوتر_لاين #روم [نص]` `تعيين صورة_اوترلاين #روم رابط` `تفعيل_اوترلاين #روم` `تعطيل_اوترلاين #روم` `حذف_اوترلاين #روم`', inline: false },
           { name: '💬 الردود التلقائية', value: '`رد_تلقائي كلمة رد` `رد_تلقائي_صورة كلمة رد رابط` `حذف_رد_تلقائي كلمة` `عرض_الردود`', inline: false },
           { name: '💡 الاقتراحات', value: '`بانل_اقتراح` (للمتحكمين) – ينشئ لوحة اقتراحات', inline: false },
           { name: '🎫 التذاكر', value: '`بانل` `عرض_تذكرة` `تعيين تذكرة` (للمتحكمين)', inline: false },
@@ -799,7 +828,7 @@ client.on('messageCreate', async (message) => {
             { name: '👋 الترحيب', value: '`ترحيب #قناة`، `رسالة_ترحيب نص`، `صورة_ترحيب رابط`، `عنوان_ترحيب نص`' },
             { name: '📋 اللوق', value: '`سجلات #قناة`' },
             { name: '📊 المستويات', value: '`روم_ليفل #قناة`' },
-            { name: '🤖 الأوتو لاين', value: '`اوتر_لاين #قناة نص`، `صورة_اوترلاين رابط`، `تفعيل_اوترلاين`، `تعطيل_اوترلاين`' },
+            { name: '🤖 الأوتو لاين (متعدد الرومات)', value: '`اوتر_لاين #روم [نص]`، `صورة_اوترلاين #روم رابط`، `تفعيل_اوترلاين #روم`، `تعطيل_اوترلاين #روم`، `حذف_اوترلاين #روم`' },
             { name: '🎫 التذاكر', value: '`تذكرة` (لإدارة الأقسام)' },
             { name: '🔔 رتب الإشعارات', value: '`صورة_رتب رابط`' },
             { name: '🖼️ عام', value: '`صورة_بنر رابط`، `صورة_عامة رابط`' },
@@ -874,56 +903,85 @@ client.on('messageCreate', async (message) => {
         return message.reply(`✅ تم تعيين قناة الليفل إلى ${channel}`);
       }
 
-      // الأوتو لاين
+      // ========== الأوتو لاين (بالصيغة الجديدة – متعدد الرومات) ==========
       if (sub === 'اوتر_لاين') {
         const channel = message.mentions.channels.first();
         if (!channel) return message.reply('⚠️ منشن الروم.');
         const text = args.slice(2).join(' ');
-        setAutoLine(guildId, { channelId: channel.id, text: text || null, enabled: true });
+        setAutoLineChannel(guildId, channel.id, { text: text || null, enabled: true });
         await logToChannel(guildId, { title: '🤖 تعيين أوتو لاين', color: 0x2b2d31, description: `**${message.author}** عيّن الأوتو لاين في ${channel}${text ? `:\n${text}` : ''}` });
         const embed = new EmbedBuilder()
           .setTitle('✅ تم تعيين الأوتو لاين')
           .setColor(0x2b2d31)
           .setDescription(`**الروم:** ${channel}${text ? `\n**النص:** ${text}` : ''}`)
-          .setFooter({ text: 'تم التفعيل تلقائياً.' });
+          .setFooter({ text: 'تم التفعيل تلقائياً لهذا الروم.' });
         if (generalImage) embed.setImage(generalImage);
         await message.channel.send({ embeds: [embed] });
         return;
       }
 
       if (sub === 'صورة_اوترلاين') {
-        if (!value) return message.reply('⚠️ أدخل رابط الصورة.');
-        setAutoLine(guildId, { image: value });
-        await logToChannel(guildId, { title: '🖼️ تعيين صورة أوتو لاين', color: 0x2b2d31, description: `**${message.author}** عيّن صورة الأوتو لاين: ${value}` });
+        const channel = message.mentions.channels.first();
+        if (!channel) return message.reply('⚠️ منشن الروم.');
+        const imageUrl = args.slice(2).join(' ');
+        if (!imageUrl) {
+          setAutoLineChannel(guildId, channel.id, { image: null });
+          await logToChannel(guildId, { title: '🖼️ إزالة صورة أوتو لاين', color: 0x2b2d31, description: `**${message.author}** أزال صورة الأوتو لاين في ${channel}` });
+          return message.reply(`✅ تم إزالة صورة الأوتو لاين من ${channel}`);
+        }
+        setAutoLineChannel(guildId, channel.id, { image: imageUrl });
+        await logToChannel(guildId, { title: '🖼️ تعيين صورة أوتو لاين', color: 0x2b2d31, description: `**${message.author}** عيّن صورة الأوتو لاين في ${channel}: ${imageUrl}` });
         const embed = new EmbedBuilder()
           .setTitle('✅ تم تعيين صورة الأوتو لاين')
           .setColor(0x2b2d31)
-          .setDescription(`[رابط الصورة](${value})`)
-          .setImage(value);
+          .setDescription(`**الروم:** ${channel}\n[رابط الصورة](${imageUrl})`)
+          .setImage(imageUrl);
         if (generalImage) embed.setThumbnail(generalImage);
         await message.channel.send({ embeds: [embed] });
         return;
       }
 
       if (sub === 'تفعيل_اوترلاين') {
-        setAutoLine(guildId, { enabled: true });
-        await logToChannel(guildId, { title: '✅ تفعيل أوتو لاين', color: 0x2b2d31, description: `**${message.author}** فعّل الأوتو لاين.` });
+        const channel = message.mentions.channels.first();
+        if (!channel) return message.reply('⚠️ منشن الروم.');
+        const auto = getAutoLineChannel(guildId, channel.id);
+        if (!auto.text && !auto.image) {
+          return message.reply(`⚠️ لم يتم تعيين نص أو صورة لهذا الروم. استخدم \`!تعيين اوتر_لاين ${channel} [نص]\` أولاً.`);
+        }
+        setAutoLineChannel(guildId, channel.id, { enabled: true });
+        await logToChannel(guildId, { title: '✅ تفعيل أوتو لاين', color: 0x2b2d31, description: `**${message.author}** فعّل الأوتو لاين في ${channel}.` });
         const embed = new EmbedBuilder()
           .setTitle('✅ تم تفعيل الأوتو لاين')
           .setColor(0x2b2d31)
-          .setDescription('تم تشغيل النظام. سيرد البوت تلقائياً في الروم المحدد.');
+          .setDescription(`تم تشغيل النظام في ${channel}. سيرد البوت تلقائياً بعد كل رسالة.`);
         if (generalImage) embed.setImage(generalImage);
         await message.channel.send({ embeds: [embed] });
         return;
       }
 
       if (sub === 'تعطيل_اوترلاين') {
-        setAutoLine(guildId, { enabled: false });
-        await logToChannel(guildId, { title: '⏹️ تعطيل أوتو لاين', color: 0x2b2d31, description: `**${message.author}** عطّل الأوتو لاين.` });
+        const channel = message.mentions.channels.first();
+        if (!channel) return message.reply('⚠️ منشن الروم.');
+        setAutoLineChannel(guildId, channel.id, { enabled: false });
+        await logToChannel(guildId, { title: '⏹️ تعطيل أوتو لاين', color: 0x2b2d31, description: `**${message.author}** عطّل الأوتو لاين في ${channel}.` });
         const embed = new EmbedBuilder()
           .setTitle('⏹️ تم تعطيل الأوتو لاين')
           .setColor(0x2b2d31)
-          .setDescription('تم إيقاف النظام. لن يرد البوت تلقائياً حتى يتم تفعيله مرة أخرى.');
+          .setDescription(`تم إيقاف النظام في ${channel}. لن يرد البوت تلقائياً حتى يتم تفعيله مرة أخرى.`);
+        if (generalImage) embed.setImage(generalImage);
+        await message.channel.send({ embeds: [embed] });
+        return;
+      }
+
+      if (sub === 'حذف_اوترلاين' || sub === 'حذف_اوتر_لاين') {
+        const channel = message.mentions.channels.first();
+        if (!channel) return message.reply('⚠️ منشن الروم.');
+        deleteAutoLineChannel(guildId, channel.id);
+        await logToChannel(guildId, { title: '🗑️ حذف أوتو لاين', color: 0x2b2d31, description: `**${message.author}** حذف إعدادات الأوتو لاين في ${channel}.` });
+        const embed = new EmbedBuilder()
+          .setTitle('🗑️ تم حذف الأوتو لاين')
+          .setColor(0x2b2d31)
+          .setDescription(`تم حذف جميع إعدادات الأوتو لاين من ${channel}.`);
         if (generalImage) embed.setImage(generalImage);
         await message.channel.send({ embeds: [embed] });
         return;
