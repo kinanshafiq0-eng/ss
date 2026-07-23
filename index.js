@@ -1,5 +1,5 @@
 // ============================================================
-// البوت - ثيم داكن وعملة OG - يدعم الأوتو لاين في عدة رومات
+// البوت - ثيم داكن وعملة OG - فصل العملة عن المستويات
 // ============================================================
 
 const {
@@ -33,7 +33,7 @@ const db = {
   memberCount: {},
   ticketSettings: {},
   warns: {},
-  autoLine: {},      // الشكل الجديد: { guildId: { channelId: { text, image, enabled } } }
+  autoLine: {},
   autoReplies: {},
   users: {},
   levelRoles: {},
@@ -149,7 +149,7 @@ function clearWarns(userId, guildId) {
   saveDB();
 }
 
-// ========== دوال الأوتو لاين (الدعم الجديد لعدة رومات) ==========
+// ========== دوال الأوتو لاين (متعدد الرومات) ==========
 function getAutoLine(guildId) {
   if (!db.autoLine[guildId]) {
     db.autoLine[guildId] = {};
@@ -264,7 +264,6 @@ const client = new Client({
 client.once('ready', () => {
   console.log(`✅ البوت جاهز باسم ${client.user.tag}`);
   if (OWNER_ID) console.log(`👑 صاحب البوت: ${OWNER_ID}`);
-  // ===== تم تغيير الحالة =====
   client.user.setActivity('The Kingdom Never Falls.', { type: ActivityType.Watching });
 });
 
@@ -445,7 +444,7 @@ client.on('messageUpdate', async (oldMessage, newMessage) => {
 });
 
 // ============================================================
-// ========== نظام المستويات والاقتصاد (الرسائل) ==========
+// ========== نظام المستويات والاقتصاد (الرسائل) - مفصول ==========
 // ============================================================
 
 client.on('messageCreate', async (message) => {
@@ -454,12 +453,39 @@ client.on('messageCreate', async (message) => {
 
   const guildId = message.guild.id;
   const userId = message.author.id;
+  const config = getGuildConfig(guildId);
 
-  try {
-    // المستويات
-    const config = getGuildConfig(guildId);
-    if (config.levelChannelId && message.channel.id !== config.levelChannelId) return;
+  // ==========================================================
+  // ===== 1. نظام العملة (OG) – يعمل في كل القنوات =====
+  // ==========================================================
+  const eco = getEconomyData(guildId, userId);
+  eco.messageCount += 1;
+  if (eco.messageCount >= 30) {
+    eco.messageCount = 0;
+    eco.og += 15;
+    saveEconomyData(guildId, userId, eco);
+    // إرسال إشعار خاص
+    try {
+      const member = await message.guild.members.fetch(userId);
+      const dmEmbed = new EmbedBuilder()
+        .setTitle('💰 مكافأة OG')
+        .setDescription(`حصلت على **15 OG** مقابل 30 رسالة في **${message.guild.name}**!\nرصيدك الحالي: **${eco.og} OG**`)
+        .setColor(0x2b2d31);
+      await member.send({ embeds: [dmEmbed] }).catch(() => {});
+    } catch (e) {}
+  } else {
+    saveEconomyData(guildId, userId, eco);
+  }
 
+  // ==========================================================
+  // ===== 2. نظام المستويات – يعمل فقط في القناة المحددة (إن وُجدت) =====
+  // ==========================================================
+  if (config.levelChannelId && message.channel.id !== config.levelChannelId) {
+    // إذا كان هناك قناة محددة للمستويات وهذه القناة ليست هي، نخرج من معالجة المستويات
+    // ولكن العملة قد تمت معالجتها بالفعل.
+    // نستمر لمعالجة الأوتو لاين والردود التلقائية (أسفل)
+  } else {
+    // معالجة المستويات
     const userData = getUserData(userId, guildId);
     userData.messages += 1;
     const gain = Math.floor(Math.random() * 15) + 5;
@@ -496,77 +522,57 @@ client.on('messageCreate', async (message) => {
     } else {
       saveUserData(userId, guildId, userData);
     }
+  }
 
-    // الاقتصاد (عملة OG)
-    const eco = getEconomyData(guildId, userId);
-    eco.messageCount += 1;
-    if (eco.messageCount >= 30) {
-      eco.messageCount = 0;
-      eco.og += 15;
-      saveEconomyData(guildId, userId, eco);
+  // ==========================================================
+  // ===== 3. نظام الأوتو لاين (متعدد الرومات) =====
+  // ==========================================================
+  const guildAuto = getAutoLine(guildId);
+  const channelAuto = guildAuto[message.channel.id];
+  if (channelAuto && channelAuto.enabled && (channelAuto.text || channelAuto.image)) {
+    const channel = client.channels.cache.get(message.channel.id);
+    if (channel) {
       try {
-        const member = await message.guild.members.fetch(userId);
-        const dmEmbed = new EmbedBuilder()
-          .setTitle('💰 مكافأة OG')
-          .setDescription(`حصلت على **15 OG** مقابل 30 رسالة في **${message.guild.name}**!\nرصيدك الحالي: **${eco.og} OG**`)
-          .setColor(0x2b2d31);
-        await member.send({ embeds: [dmEmbed] }).catch(() => {});
-      } catch (e) {}
-    } else {
-      saveEconomyData(guildId, userId, eco);
-    }
-
-    // ========== نظام الأوتو لاين (متعدد الرومات) ==========
-    // نجلب إعدادات الأوتو لاين لكل القنوات في هذا السيرفر
-    const guildAuto = getAutoLine(guildId);
-    // نتحقق من القناة الحالية
-    const channelAuto = guildAuto[message.channel.id];
-    if (channelAuto && channelAuto.enabled && (channelAuto.text || channelAuto.image)) {
-      const channel = client.channels.cache.get(message.channel.id);
-      if (channel) {
-        try {
-          if (channelAuto.text && channelAuto.image) {
-            const embed = new EmbedBuilder()
-              .setDescription(channelAuto.text)
-              .setColor(0x2b2d31)
-              .setImage(channelAuto.image)
-              .setTimestamp();
-            await channel.send({ embeds: [embed] });
-          } else if (channelAuto.image) {
-            const embed = new EmbedBuilder()
-              .setColor(0x2b2d31)
-              .setImage(channelAuto.image)
-              .setTimestamp();
-            await channel.send({ embeds: [embed] });
-          } else if (channelAuto.text) {
-            await channel.send(channelAuto.text);
-          }
-        } catch (e) {}
-        return; // منع الردود التلقائية في نفس الروم
-      }
-    }
-
-    // الردود التلقائية
-    const autoReply = findAutoReply(guildId, message.content);
-    if (autoReply) {
-      try {
-        if (autoReply.image) {
+        if (channelAuto.text && channelAuto.image) {
           const embed = new EmbedBuilder()
-            .setDescription(autoReply.reply)
+            .setDescription(channelAuto.text)
             .setColor(0x2b2d31)
-            .setImage(autoReply.image)
+            .setImage(channelAuto.image)
             .setTimestamp();
-          await message.reply({ embeds: [embed] });
-        } else {
-          await message.reply(autoReply.reply);
+          await channel.send({ embeds: [embed] });
+        } else if (channelAuto.image) {
+          const embed = new EmbedBuilder()
+            .setColor(0x2b2d31)
+            .setImage(channelAuto.image)
+            .setTimestamp();
+          await channel.send({ embeds: [embed] });
+        } else if (channelAuto.text) {
+          await channel.send(channelAuto.text);
         }
-      } catch (e) {
-        await message.channel.send(autoReply.reply).catch(() => {});
-      }
+      } catch (e) {}
+      return; // منع الردود التلقائية في نفس الروم
     }
+  }
 
-  } catch (error) {
-    console.error('❌ خطأ في معالجة الرسالة:', error);
+  // ==========================================================
+  // ===== 4. الردود التلقائية =====
+  // ==========================================================
+  const autoReply = findAutoReply(guildId, message.content);
+  if (autoReply) {
+    try {
+      if (autoReply.image) {
+        const embed = new EmbedBuilder()
+          .setDescription(autoReply.reply)
+          .setColor(0x2b2d31)
+          .setImage(autoReply.image)
+          .setTimestamp();
+        await message.reply({ embeds: [embed] });
+      } else {
+        await message.reply(autoReply.reply);
+      }
+    } catch (e) {
+      await message.channel.send(autoReply.reply).catch(() => {});
+    }
   }
 });
 
@@ -903,7 +909,7 @@ client.on('messageCreate', async (message) => {
         return message.reply(`✅ تم تعيين قناة الليفل إلى ${channel}`);
       }
 
-      // ========== الأوتو لاين (بالصيغة الجديدة – متعدد الرومات) ==========
+      // ========== الأوتو لاين (متعدد الرومات) ==========
       if (sub === 'اوتر_لاين') {
         const channel = message.mentions.channels.first();
         if (!channel) return message.reply('⚠️ منشن الروم.');
