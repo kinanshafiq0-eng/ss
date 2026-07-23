@@ -2691,4 +2691,26 @@ client.on('interactionCreate', async (interaction) => {
         const embed = new EmbedBuilder().setTitle(`🎫 تذكرة - ${selected}`).setDescription(`مرحباً ${member}!\nالقسم: **${selected}**\nيرجى شرح مشكلتك، سيرد عليك فريق الدعم قريباً.`).setColor(0x2b2d31).setTimestamp();
         if (generalImage) embed.setImage(generalImage);
         let mention = section.roleId ? `${guild.roles.cache.get(section.roleId)}` : '';
-        const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('close_ticket
+        const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('close_ticket').setLabel('🔒 إغلاق التذكرة').setStyle(ButtonStyle.Secondary));
+        await channel.send({ content: `${member} ${mention}`.trim(), embeds: [embed], components: [row] });
+        await logToChannel(guild.id, { title: '🎫 فتح تذكرة', color: 0x2b2d31, description: `**${member.user.tag}** فتح تذكرة في قسم **${selected}**\nالقناة: ${channel}`, footer: 'نظام التذاكر' });
+        await interaction.editReply({ content: `✅ تم إنشاء تذكرتك: ${channel}`, ephemeral: true });
+      } catch (error) { await interaction.editReply({ content: '❌ حدث خطأ في إنشاء التذكرة.', ephemeral: true }); }
+    }
+
+  } catch (error) {
+    console.error('❌ خطأ في معالج التفاعلات:', error);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: '❌ حدث خطأ.', ephemeral: true }).catch(() => {});
+    }
+  }
+});
+
+// ============================================================
+// ========== تشغيل البوت ==========
+// ============================================================
+
+client.login(TOKEN).catch((err) => {
+  console.error('❌ فشل تسجيل الدخول:', err);
+  process.exit(1);
+});
