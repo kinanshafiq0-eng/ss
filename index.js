@@ -1,6 +1,5 @@
 // ============================================================
-// البوت النهائي - ثيم داكن - خلفية ترحيب قابلة للتخصيص
-// جميع الإعدادات محفوظة في database.json
+// البوت - ثيم داكن - خلفية ترحيب قابلة للتخصيص - حفظ في JSON
 // ============================================================
 
 const {
@@ -27,7 +26,7 @@ if (!TOKEN) {
   process.exit(1);
 }
 
-// ========== قاعدة البيانات (JSON) - حفظ دائم ==========
+// ========== قاعدة البيانات (JSON) ==========
 const db = {
   config: {},
   nameCooldown: {},
@@ -45,6 +44,7 @@ const db = {
 function saveDB() {
   try {
     fs.writeFileSync('./database.json', JSON.stringify(db, null, 2));
+    console.log('✅ تم حفظ البيانات في database.json');
   } catch (e) {
     console.error('❌ فشل حفظ قاعدة البيانات:', e);
   }
@@ -54,6 +54,7 @@ function loadDB() {
   try {
     const data = fs.readFileSync('./database.json', 'utf8');
     Object.assign(db, JSON.parse(data));
+    console.log('✅ تم تحميل البيانات من database.json');
   } catch (e) {
     console.log('📁 لا يوجد ملف database.json، سيتم إنشاؤه تلقائياً.');
     saveDB();
@@ -325,22 +326,18 @@ async function generateWelcomeImage(member, memberCount, background = null) {
 
   // رسم الخلفية
   if (background) {
-    // إذا كان الخلفية رابط صورة
     if (background.match(/^https?:\/\/.+\.(png|jpg|jpeg|gif|webp)/i)) {
       try {
         const bgImage = await loadImage(background);
         ctx.drawImage(bgImage, 0, 0, width, height);
       } catch (e) {
-        // في حال فشل تحميل الصورة، استخدم الافتراضية
         drawDefaultBackground(ctx, width, height);
       }
     } else {
-      // إذا كان لون هيكس
       ctx.fillStyle = background;
       ctx.fillRect(0, 0, width, height);
     }
   } else {
-    // الخلفية الافتراضية
     drawDefaultBackground(ctx, width, height);
   }
 
@@ -418,7 +415,7 @@ client.on('guildMemberAdd', async (member) => {
     const imageBuffer = await generateWelcomeImage(
       member,
       memberCount,
-      config.welcomeBackground // الخلفية المخصصة (أو null)
+      config.welcomeBackground
     );
     const generalImage = getGeneralImage(member.guild, config);
     const embed = new EmbedBuilder()
@@ -686,9 +683,8 @@ client.on('messageCreate', async (message) => {
 
   // تحديد مدة الحذف: 5 ثوانٍ للأوامر الإدارية، 20 ثانية للباقي
   const deleteDelay = isAdminCommand(cmd) ? 5000 : 20000;
-  let sentReply = null; // لتخزين الرد المرسل لحذفه لاحقاً
+  let sentReply = null;
 
-  // دالة لحذف الأمر والرد بعد المدة
   const deleteAfter = async (replyMsg) => {
     setTimeout(async () => {
       try { await message.delete(); } catch (e) {}
@@ -1046,7 +1042,7 @@ client.on('messageCreate', async (message) => {
         return;
       }
 
-      // ===== خلفية الترحيب =====
+      // ===== خلفية الترحيب (الأمر الجديد) =====
       if (sub === 'خلفية_ترحيب') {
         if (!value) {
           updateGuildConfig(guildId, { welcomeBackground: null });
@@ -1353,7 +1349,7 @@ client.on('messageCreate', async (message) => {
         return;
       }
 
-      // التذاكر
+      // التذاكر (إدارة الأقسام)
       if (sub === 'تذكرة') {
         const settings = getTicketSettings(guildId);
         const action = args[1]?.toLowerCase();
